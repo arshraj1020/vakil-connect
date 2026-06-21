@@ -106,6 +106,8 @@ vakil-connect/
 
 ---
 
-## 📄 License
+## © Copyright
 
-This project is licensed under the MIT License.
+Copyright © 2026 Arsh Raj.
+
+All rights reserved.
