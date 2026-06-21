@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
+# Java
+target/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Environment
+.env
