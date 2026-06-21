@@ -111,3 +111,5 @@ vakil-connect/
 Copyright © 2026 Arsh Raj.
 
 All rights reserved.
+
+This project is the intellectual property of the author. No part of this repository may be copied, modified, redistributed, or used commercially without prior written permission.
