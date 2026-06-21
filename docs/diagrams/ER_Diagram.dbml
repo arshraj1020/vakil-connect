@@ -1,0 +1,101 @@
+Table User {
+  id uuid [pk]
+  full_name varchar
+  email varchar [unique]
+  password_hash varchar
+  phone_number varchar
+  role varchar
+  is_email_verified boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table ClientProfile {
+  id uuid [pk]
+  user_id uuid [unique, ref: > User.id]
+  date_of_birth date
+  gender varchar
+  address text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table LawyerProfile {
+  id uuid [pk]
+  user_id uuid [unique, ref: > User.id]
+  bar_council_number varchar [unique]
+  years_of_experience int
+  consultation_fee decimal
+  bio text
+  office_address text
+  profile_photo_url varchar
+  is_verified boolean
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table Specialization {
+  id uuid [pk]
+  name varchar [unique]
+}
+
+Table LawyerSpecialization {
+  lawyer_id uuid [ref: > LawyerProfile.id]
+  specialization_id uuid [ref: > Specialization.id]
+
+  indexes {
+    (lawyer_id, specialization_id) [pk]
+  }
+}
+
+Table Availability {
+  id uuid [pk]
+  lawyer_id uuid [ref: > LawyerProfile.id]
+  day_of_week varchar
+  start_time time
+  end_time time
+  is_available boolean
+}
+
+Table Appointment {
+  id uuid [pk]
+  client_id uuid [ref: > ClientProfile.id]
+  lawyer_id uuid [ref: > LawyerProfile.id]
+  appointment_date date
+  appointment_time time
+  consultation_mode varchar
+  status varchar
+  notes text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table Review {
+  id uuid [pk]
+  appointment_id uuid [unique, ref: > Appointment.id]
+  client_id uuid [ref: > ClientProfile.id]
+  lawyer_id uuid [ref: > LawyerProfile.id]
+  rating int
+  comment text
+  created_at timestamp
+}
+
+Table Document {
+  id uuid [pk]
+  appointment_id uuid [ref: > Appointment.id]
+  uploaded_by uuid [ref: > User.id]
+  file_name varchar
+  file_url varchar
+  document_type varchar
+  uploaded_at timestamp
+}
+
+Table Notification {
+  id uuid [pk]
+  user_id uuid [ref: > User.id]
+  title varchar
+  message text
+  type varchar
+  is_read boolean
+  created_at timestamp
+}
