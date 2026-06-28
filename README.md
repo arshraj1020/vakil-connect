@@ -93,16 +93,30 @@ vakil-connect/
 
 ## 🚀 Development Roadmap
 
-- [x] Project Initialization
-- [ ] Software Requirement Specification (SRS)
-- [ ] System Architecture
-- [ ] Database Design
-- [ ] REST API Design
-- [ ] Frontend Development
-- [ ] Backend Development
-- [ ] AI Integration
+### Phase 1
+- [x] Project Setup
+- [x] Database Design
+- [x] Backend Architecture
+
+### Phase 2
+- [ ] User Authentication
+- [ ] Lawyer Management
+- [ ] Appointment System
+
+### Phase 3
+- [ ] Reviews
+- [ ] Notifications
+- [ ] Document Management
+
+### Phase 4
+- [ ] AI Legal Assistant
+- [ ] Lawyer Recommendation
+- [ ] AI Document Analysis
+
+### Phase 5
 - [ ] Testing
-- [ ] Deployment
+- [ ] Docker Deployment
+- [ ] Cloud Deployment
 
 ---
 
