@@ -4,6 +4,7 @@ import com.arshraj.vakilconnect.user.dto.RegisterUserRequest;
 import com.arshraj.vakilconnect.user.entity.User;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import com.arshraj.vakilconnect.user.dto.UserResponse;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -15,7 +16,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User registerUser(RegisterUserRequest request) {
+    public UserResponse registerUser(RegisterUserRequest request) {
 
         User user = new User();
 
@@ -24,6 +25,17 @@ public class UserServiceImpl implements UserService {
         user.setPassword(request.getPassword());
         user.setPhoneNumber(request.getPhoneNumber());
 
-        return userRepository.save(user);
+        user.setEnabled(true);
+
+        User savedUser = userRepository.save(user);
+
+        UserResponse response = new UserResponse();
+
+        response.setId(savedUser.getId());
+        response.setFullName(savedUser.getFullName());
+        response.setEmail(savedUser.getEmail());
+        response.setPhoneNumber(savedUser.getPhoneNumber());
+
+        return response;
     }
 }

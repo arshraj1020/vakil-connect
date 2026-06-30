@@ -1,24 +1,23 @@
 package com.arshraj.vakilconnect.user.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
+import java.util.UUID;
 
-public class RegisterUserRequest {
+public class UserResponse {
 
-    @NotBlank
+    private UUID id;
     private String fullName;
-
-    @Email
-    @NotBlank
     private String email;
-
-    @NotBlank
-    private String password;
-
-    @NotBlank
     private String phoneNumber;
 
-    public RegisterUserRequest() {
+    public UserResponse() {
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
     }
 
     public String getFullName() {
@@ -35,14 +34,6 @@ public class RegisterUserRequest {
 
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
     }
 
     public String getPhoneNumber() {
