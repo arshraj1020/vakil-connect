@@ -95,31 +95,31 @@ VakilConnect follows a modular, service-oriented architecture designed to separa
 
 ```text
                          ┌──────────────────────┐
-                         │   Next.js Frontend    │
-                         │  (Client / Lawyer /   │
-                         │   Admin Dashboards)    │
+                         │   Next.js Frontend   │
+                         │  (Client / Lawyer /  │
+                         │   Admin Dashboards)  │
                          └──────────┬───────────┘
                                     │  REST / HTTPS
                                     ▼
-                         ┌──────────────────────┐
+                         ┌───────────────────────┐
                          │   Spring Boot API     │
                          │  (Core Business Logic)│
                          │  Auth · Bookings ·    │
-                         │  Profiles · Reviews    │
-                         └──────────┬───────────┘
+                         │  Profiles · Reviews   │
+                         └──────────┬────────────┘
                           ┌─────────┴─────────┐
                           ▼                   ▼
-                 ┌────────────────┐  ┌──────────────────┐
+                 ┌─────────────────┐  ┌───────────────────┐
                  │  PostgreSQL DB  │  │  FastAPI AI Layer │
                  │  (Primary Store)│  │ (Recommendations, │
-                 └────────────────┘  │  Summarization)   │
-                                      └──────────────────┘
+                 └─────────────────┘  │  Summarization)   │
+                                      └───────────────────┘
                                     │
                                     ▼
-                         ┌──────────────────────┐
-                         │      AWS S3           │
-                         │ (Document Storage)    │
-                         └──────────────────────┘
+                         ┌────────────────────┐
+                         │      AWS S3        │
+                         │ (Document Storage) │
+                         └────────────────────┘
 ```
 
 > Detailed architecture diagrams (component, sequence, and deployment views) will be added as each service layer is implemented.
