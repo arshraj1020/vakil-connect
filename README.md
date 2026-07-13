@@ -26,6 +26,7 @@ A full-stack legal-tech platform that helps users discover verified lawyers, boo
 ## Table of Contents
 
 - [Overview](#overview)
+- [Current Progress](#current-progress)
 - [Key Features](#key-features)
 - [Architecture Overview](#architecture-overview)
 - [Tech Stack](#tech-stack)
@@ -52,33 +53,55 @@ A full-stack legal-tech platform that helps users discover verified lawyers, boo
 
 The platform is being built using modern software engineering practices — clean architecture, layered backend design, secure-by-default authentication, and clearly documented APIs — with the long-term goal of evolving into a scalable, microservices-based legal-tech ecosystem.
 
-> **Project status:** VakilConnect is a private, personal project under active development. The backend foundation (Spring Boot, PostgreSQL, Spring Security) is being built first, with the frontend, AI service, and infrastructure layers planned in subsequent phases as outlined in the [Development Roadmap](#development-roadmap). This repository is not intended for public use, deployment, or distribution.
+> **Project status:** VakilConnect is a private, personal project under active development. The backend foundation (Spring Boot, PostgreSQL, Flyway, Spring Security) is being built first, with authorization, lawyer/appointment modules, the frontend, AI service, and infrastructure layers planned in subsequent phases as outlined in the [Development Roadmap](#development-roadmap). This repository is not intended for public use, deployment, or distribution.
+
+---
+
+## Current Progress
+
+A snapshot of what's actually working today in the backend:
+
+- ✅ Spring Boot project scaffolded with a clean layered architecture
+- ✅ PostgreSQL database integration
+- ✅ Flyway-managed database migrations for schema versioning
+- ✅ Spring Security configured for the application
+- ✅ Password hashing using BCrypt
+- ✅ User Registration API
+- ✅ User Login API
+- ✅ JWT token generation on successful authentication
+- ✅ Swagger / OpenAPI documentation integrated
+- ✅ DTO pattern for request/response contracts
+- ✅ Repository–Service–Controller layering in place
+
+**Not yet implemented:** JWT authorization filter (route protection), role-based access control, lawyer module, appointment module, document upload, AI service, frontend, Docker, and CI/CD. See the [Development Roadmap](#development-roadmap) for sequencing.
 
 ---
 
 ## Key Features
 
+> The features below describe the intended scope of the platform. Items already implemented are marked accordingly; everything else is planned and tracked in the [Development Roadmap](#development-roadmap).
+
 ### For Clients
-- Account registration and secure login
-- Search and discover lawyers by specialization, location, and rating
-- Filter lawyers by practice area and availability
-- Book and manage appointments
-- Upload and store legal documents securely
-- View complete appointment history
-- Leave reviews and ratings for consultations
+- Account registration and secure login *(implemented)*
+- Search and discover lawyers by specialization, location, and rating *(planned)*
+- Filter lawyers by practice area and availability *(planned)*
+- Book and manage appointments *(planned)*
+- Upload and store legal documents securely *(planned)*
+- View complete appointment history *(planned)*
+- Leave reviews and ratings for consultations *(planned)*
 
 ### For Lawyers
-- Lawyer registration and profile verification
-- Profile and credential management
-- Availability and scheduling configuration
-- Accept or decline incoming appointment requests
-- Manage active and past consultations
+- Lawyer registration and profile verification *(planned)*
+- Profile and credential management *(planned)*
+- Availability and scheduling configuration *(planned)*
+- Accept or decline incoming appointment requests *(planned)*
+- Manage active and past consultations *(planned)*
 
 ### For Administrators
-- Verify and approve lawyer registrations
-- Manage client and lawyer accounts
-- Access platform-wide analytics and reporting
-- Moderate content and reviews
+- Verify and approve lawyer registrations *(planned)*
+- Manage client and lawyer accounts *(planned)*
+- Access platform-wide analytics and reporting *(planned)*
+- Moderate content and reviews *(planned)*
 
 ### AI-Assisted Capabilities *(Planned)*
 - Conversational AI legal assistant for preliminary guidance
@@ -122,7 +145,7 @@ VakilConnect follows a modular, service-oriented architecture designed to separa
                          └────────────────────┘
 ```
 
-> Detailed architecture diagrams (component, sequence, and deployment views) will be added as each service layer is implemented.
+> This diagram represents the target end-state architecture. Currently, only the Spring Boot API and PostgreSQL layers are implemented; the frontend, AI layer, and document storage are planned. Detailed architecture diagrams (component, sequence, and deployment views) will be added as each service layer is implemented.
 
 ---
 
@@ -132,12 +155,15 @@ VakilConnect follows a modular, service-oriented architecture designed to separa
 |---|---|---|
 | **Frontend** | Next.js + TypeScript | Planned |
 | **Backend** | Spring Boot (Java) | In Development |
-| **Database** | PostgreSQL | In Development |
-| **Authentication** | Spring Security + JWT | In Development |
-| **API Documentation** | Swagger / OpenAPI | In Development |
+| **Database** | PostgreSQL | Implemented |
+| **DB Migrations** | Flyway | Implemented |
+| **Authentication** | Spring Security + JWT (token generation) | In Development |
+| **Authorization** | JWT Filter + Role-Based Access Control | Planned |
+| **API Documentation** | Swagger / OpenAPI | Implemented |
 | **AI Service** | FastAPI + LangChain | Planned |
 | **File Storage** | AWS S3 | Planned |
 | **Containerization** | Docker | Planned |
+| **CI/CD** | GitHub Actions (or equivalent) | Planned |
 | **Version Control** | Git + GitHub | Active |
 
 ---
@@ -153,6 +179,7 @@ Repository Layer   →  Manages data persistence via Spring Data JPA
 Entity / Model      →  Represents domain objects mapped to PostgreSQL
 DTO Layer          →  Decouples API contracts from internal entities
 Security Layer     →  Spring Security with JWT-based authentication
+Migration Layer    →  Flyway-managed, version-controlled schema changes
 Exception Layer    →  Centralized error handling and custom exceptions
 Config Layer       →  Application, security, and Swagger configuration
 ```
@@ -183,13 +210,14 @@ As the platform matures, the monolithic Spring Boot backend is intended to evolv
 
 Security is treated as a first-class concern throughout the platform's design:
 
-- **Spring Security** for authentication and authorization
-- **JWT-based stateless authentication** *(planned)* for secure, scalable session handling
-- **Role-based access control** distinguishing Client, Lawyer, and Admin permissions
-- **Password encryption** using industry-standard hashing algorithms
-- **Input validation** at the controller and service layers to prevent malformed or malicious data
-- **Centralized exception handling** to avoid leaking internal implementation details
-- **HTTPS-only communication** in production deployments
+- **Spring Security** configured for authentication *(implemented)*
+- **BCrypt password hashing** for all stored user credentials *(implemented)*
+- **JWT token generation** issued on successful login for stateless authentication *(implemented)*
+- **JWT authorization filter** to protect routes using issued tokens *(planned)*
+- **Role-based access control** distinguishing Client, Lawyer, and Admin permissions *(planned)*
+- **Input validation** at the controller and service layers to prevent malformed or malicious data *(in progress)*
+- **Centralized exception handling** to avoid leaking internal implementation details *(in progress)*
+- **HTTPS-only communication** in production deployments *(planned)*
 - **Secure document storage** via AWS S3 with access-controlled URLs *(planned)*
 
 ---
@@ -210,7 +238,7 @@ vakil-connect/
 │   │   └── config/              # App, Swagger, and bean configuration
 │   ├── src/main/resources/
 │   │   ├── application.yml      # Application configuration
-│   │   └── db/migration/        # Database migration scripts
+│   │   └── db/migration/        # Flyway database migration scripts
 │   └── pom.xml
 │
 ├── frontend/                    # Next.js application (planned)
@@ -240,9 +268,17 @@ vakil-connect/
 
 API documentation is generated using **Swagger / OpenAPI** and is integrated directly into the Spring Boot backend.
 
-- Interactive Swagger UI will be available at `/swagger-ui.html` once the backend is run locally
+- Interactive Swagger UI is available at `/swagger-ui.html` when the backend is run locally
 - A full hosted API reference (Postman collection / OpenAPI spec) is **coming soon**
-- Endpoint-level documentation will be expanded as each module (Auth, Appointments, Documents, Reviews) is completed
+
+### Currently Available Endpoints
+
+| Endpoint | Method | Description | Status |
+|---|---|---|---|
+| `/api/auth/register` | POST | Registers a new user with hashed (BCrypt) password storage | ✅ Implemented |
+| `/api/auth/login` | POST | Authenticates a user and returns a signed JWT access token | ✅ Implemented |
+
+> Additional endpoints for lawyer profiles, appointments, documents, and reviews will be documented here as each module is completed. Note that issued JWTs are not yet enforced on protected routes, since the authorization filter is still in development.
 
 ---
 
@@ -282,6 +318,8 @@ cd backend
 mvn clean install
 ```
 
+Flyway will automatically run pending migrations against the configured database on application startup.
+
 ---
 
 ## Running the Project
@@ -299,7 +337,7 @@ The API server will start on:
 http://localhost:8080
 ```
 
-Swagger documentation (once configured) will be available at:
+Swagger documentation is available at:
 
 ```text
 http://localhost:8080/swagger-ui.html
@@ -336,9 +374,13 @@ spring:
     username: your_db_username
     password: your_db_password
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
 
 jwt:
@@ -348,6 +390,8 @@ jwt:
 server:
   port: 8080
 ```
+
+> `ddl-auto` is set to `validate` (rather than `update`) since schema changes are now managed through Flyway migrations.
 
 ### Frontend (`.env.local`) — Planned
 
@@ -373,9 +417,15 @@ The project is being developed in clearly scoped phases to ensure a stable found
 - [x] Project setup and repository structure
 - [x] Database schema design
 - [x] Core backend architecture (layered Spring Boot setup)
+- [x] Flyway migration setup
 
 ### Phase 2 — Core Backend Functionality
-- [ ] User authentication and JWT-based authorization
+- [x] Spring Security configuration
+- [x] Password hashing with BCrypt
+- [x] User Registration API
+- [x] User Login API
+- [x] JWT token generation on login
+- [ ] JWT authorization filter for protected routes
 - [ ] Role-based access control (Client / Lawyer / Admin)
 - [ ] Lawyer registration and profile management
 - [ ] Appointment booking and scheduling system
