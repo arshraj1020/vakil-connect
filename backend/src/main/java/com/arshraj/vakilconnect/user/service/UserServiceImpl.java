@@ -1,6 +1,7 @@
 package com.arshraj.vakilconnect.user.service;
 
 import com.arshraj.vakilconnect.security.jwt.JwtService;
+import com.arshraj.vakilconnect.user.dto.CurrentUserResponse;
 import com.arshraj.vakilconnect.user.dto.LoginRequest;
 import com.arshraj.vakilconnect.user.dto.LoginResponse;
 import com.arshraj.vakilconnect.user.dto.RegisterUserRequest;
@@ -79,5 +80,21 @@ public class UserServiceImpl implements UserService {
         String token = jwtService.generateToken(user.getEmail());
 
         return new LoginResponse(token);
+    }
+
+    @Override
+    public CurrentUserResponse getCurrentUser(String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        CurrentUserResponse response = new CurrentUserResponse();
+
+        response.setId(user.getId());
+        response.setFullName(user.getFullName());
+        response.setEmail(user.getEmail());
+        response.setPhoneNumber(user.getPhoneNumber());
+
+        return response;
     }
 }
