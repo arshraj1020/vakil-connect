@@ -7,9 +7,17 @@ spring:
     username: arshraj
     password:
 
-  flyway:
-    enabled: false
-
   jpa:
     hibernate:
       ddl-auto: update
+    show-sql: true
+    open-in-view: false
+
+  flyway:
+    enabled: false
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

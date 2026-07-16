@@ -1,8 +1,11 @@
 package com.arshraj.vakilconnect.user.entity;
 
 import com.arshraj.vakilconnect.common.entity.BaseEntity;
+import com.arshraj.vakilconnect.user.enums.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 @Entity
@@ -23,6 +26,10 @@ public class User extends BaseEntity {
 
     @Column(nullable = false)
     private boolean enabled = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role = Role.CLIENT;
 
     public User() {
     }
@@ -65,5 +72,13 @@ public class User extends BaseEntity {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
     }
 }

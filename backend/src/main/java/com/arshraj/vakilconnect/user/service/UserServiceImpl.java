@@ -7,6 +7,7 @@ import com.arshraj.vakilconnect.user.dto.LoginResponse;
 import com.arshraj.vakilconnect.user.dto.RegisterUserRequest;
 import com.arshraj.vakilconnect.user.dto.UserResponse;
 import com.arshraj.vakilconnect.user.entity.User;
+import com.arshraj.vakilconnect.user.enums.Role;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,9 @@ public class UserServiceImpl implements UserService {
 
         user.setPhoneNumber(request.getPhoneNumber());
         user.setEnabled(true);
+
+        // Every newly registered user is a CLIENT
+        user.setRole(Role.CLIENT);
 
         // Save user
         User savedUser = userRepository.save(user);
