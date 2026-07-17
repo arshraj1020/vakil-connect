@@ -12,20 +12,20 @@ import jakarta.persistence.Table;
 @Table(name = "users")
 public class User extends BaseEntity {
 
-    @Column(nullable = false)
+    @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 255)
     private String email;
 
-    @Column(nullable = false)
-    private String password;
+    @Column(name = "password_hash", nullable = false)
+    private String passwordHash;
 
-    @Column(nullable = false)
+    @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
-    @Column(nullable = false)
-    private boolean enabled = true;
+    @Column(name = "is_email_verified", nullable = false)
+    private boolean enabled = false;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -47,15 +47,15 @@ public class User extends BaseEntity {
     }
 
     public void setEmail(String email) {
-        this.email = email.toLowerCase();
+        this.email = email == null ? null : email.trim().toLowerCase();
     }
 
-    public String getPassword() {
-        return password;
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
     public String getPhoneNumber() {
