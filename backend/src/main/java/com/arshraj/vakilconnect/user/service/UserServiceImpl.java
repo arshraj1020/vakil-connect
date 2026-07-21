@@ -32,19 +32,17 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse registerUser(RegisterUserRequest request) {
 
-        // Check if email already exists
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already registered.");
         }
 
-        // Create user
         User user = new User();
 
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
 
         // Encrypt password before saving
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
 
         user.setPhoneNumber(request.getPhoneNumber());
         user.setEnabled(true);
@@ -52,10 +50,8 @@ public class UserServiceImpl implements UserService {
         // Every newly registered user is a CLIENT
         user.setRole(Role.CLIENT);
 
-        // Save user
         User savedUser = userRepository.save(user);
 
-        // Prepare response
         UserResponse response = new UserResponse();
 
         response.setId(savedUser.getId());
@@ -77,7 +73,7 @@ public class UserServiceImpl implements UserService {
 
         User user = optionalUser.get();
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new RuntimeException("Invalid email or password");
         }
 

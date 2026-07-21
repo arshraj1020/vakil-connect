@@ -1,10 +1,15 @@
 package com.arshraj.vakilconnect.auth.service;
 
+import com.arshraj.vakilconnect.auth.dto.LoginRequest;
+import com.arshraj.vakilconnect.auth.dto.LoginResponse;
 import com.arshraj.vakilconnect.auth.dto.RegisterRequest;
 import com.arshraj.vakilconnect.auth.dto.RegisterResponse;
+import com.arshraj.vakilconnect.security.jwt.JwtService;
 import com.arshraj.vakilconnect.user.entity.User;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -14,24 +19,32 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
 
     public AuthServiceImpl(UserRepository userRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           AuthenticationManager authenticationManager,
+                           JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authenticationManager = authenticationManager;
+        this.jwtService = jwtService;
     }
 
     @Override
     public RegisterResponse register(RegisterRequest request) {
 
-        if (userRepository.existsByEmail(request.getEmail().trim().toLowerCase())) {
+        String email = request.getEmail().trim().toLowerCase();
+
+        if (userRepository.existsByEmail(email)) {
             throw new RuntimeException("Email already exists.");
         }
 
         User user = new User();
 
         user.setFullName(request.getFullName());
-        user.setEmail(request.getEmail());
+        user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setPhoneNumber(request.getPhoneNumber());
 
@@ -43,6 +56,30 @@ public class AuthServiceImpl implements AuthService {
                 savedUser.getEmail(),
                 savedUser.getRole().name(),
                 "Registration successful."
+        );
+    }
+
+    @Override
+    public LoginResponse login(LoginRequest request) {
+
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.getEmail(),
+                        request.getPassword()
+                )
+        );
+
+        User user = userRepository.findByEmail(request.getEmail().trim().toLowerCase())
+                .orElseThrow(() -> new RuntimeException("User not found."));
+
+        String token = jwtService.generateToken(user.getEmail());
+
+        return new LoginResponse(
+                token,
+                "Bearer",
+                user.getFullName(),
+                user.getEmail(),
+                user.getRole().name()
         );
     }
 }

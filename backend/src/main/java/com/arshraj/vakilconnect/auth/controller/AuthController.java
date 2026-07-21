@@ -1,5 +1,7 @@
 package com.arshraj.vakilconnect.auth.controller;
 
+import com.arshraj.vakilconnect.auth.dto.LoginRequest;
+import com.arshraj.vakilconnect.auth.dto.LoginResponse;
 import com.arshraj.vakilconnect.auth.dto.RegisterRequest;
 import com.arshraj.vakilconnect.auth.dto.RegisterResponse;
 import com.arshraj.vakilconnect.auth.service.AuthService;
@@ -24,6 +26,17 @@ public class AuthController {
 
         RegisterResponse response = authService.register(request);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request) {
+
+        LoginResponse response = authService.login(request);
+
+        return ResponseEntity.ok(response);
     }
 }

@@ -27,5 +27,5 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: REPLACE_WITH_A_BASE64_SECRET
+  secret: 0qtB0lVtSmXP6wmQMO9nv/PuYw19uwXqCCMUp4GIN6w=
   expiration: 86400000
