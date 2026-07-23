@@ -5,6 +5,8 @@ import com.arshraj.vakilconnect.user.entity.User;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "lawyers")
@@ -40,6 +42,14 @@ public class Lawyer extends BaseEntity {
 
     @Column(name = "total_reviews", nullable = false)
     private Integer totalReviews = 0;
+
+    @ManyToMany
+    @JoinTable(
+            name = "lawyer_specializations",
+            joinColumns = @JoinColumn(name = "lawyer_id"),
+            inverseJoinColumns = @JoinColumn(name = "specialization_id")
+    )
+    private Set<Specialization> specializations = new HashSet<>();
 
     public Lawyer() {
     }
@@ -122,5 +132,13 @@ public class Lawyer extends BaseEntity {
 
     public void setTotalReviews(Integer totalReviews) {
         this.totalReviews = totalReviews;
+    }
+
+    public Set<Specialization> getSpecializations() {
+        return specializations;
+    }
+
+    public void setSpecializations(Set<Specialization> specializations) {
+        this.specializations = specializations;
     }
 }

@@ -41,6 +41,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
 
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/lawyers/**")
+                        .permitAll()
+
                         .requestMatchers("/api/client/**")
                         .hasRole("CLIENT")
 

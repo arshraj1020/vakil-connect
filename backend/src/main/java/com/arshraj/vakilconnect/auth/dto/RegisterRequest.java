@@ -25,6 +25,12 @@ public class RegisterRequest {
     )
     private String phoneNumber;
 
+    @Pattern(
+            regexp = "CLIENT|LAWYER",
+            message = "Role must be either CLIENT or LAWYER"
+    )
+    private String role;
+
     public RegisterRequest() {
     }
 
@@ -58,5 +64,13 @@ public class RegisterRequest {
 
     public void setPhoneNumber(String phoneNumber) {
         this.phoneNumber = phoneNumber;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

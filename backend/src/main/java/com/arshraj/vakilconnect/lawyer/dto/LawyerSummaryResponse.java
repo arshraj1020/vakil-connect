@@ -4,26 +4,18 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
-public class LawyerProfileResponse {
+public class LawyerSummaryResponse {
 
     private UUID id;
     private String fullName;
-    private String email;
-    private String phoneNumber;
-
-    private String barCouncilNumber;
-    private Integer experienceYears;
-    private String bio;
-    private BigDecimal consultationFee;
     private String city;
-    private String officeAddress;
-
-    private Boolean verified;
+    private Integer experienceYears;
+    private BigDecimal consultationFee;
     private Double rating;
     private Integer totalReviews;
     private List<String> specializations;
 
-    public LawyerProfileResponse() {
+    public LawyerSummaryResponse() {
     }
 
     public UUID getId() {
@@ -42,28 +34,12 @@ public class LawyerProfileResponse {
         this.fullName = fullName;
     }
 
-    public String getEmail() {
-        return email;
+    public String getCity() {
+        return city;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getPhoneNumber() {
-        return phoneNumber;
-    }
-
-    public void setPhoneNumber(String phoneNumber) {
-        this.phoneNumber = phoneNumber;
-    }
-
-    public String getBarCouncilNumber() {
-        return barCouncilNumber;
-    }
-
-    public void setBarCouncilNumber(String barCouncilNumber) {
-        this.barCouncilNumber = barCouncilNumber;
+    public void setCity(String city) {
+        this.city = city;
     }
 
     public Integer getExperienceYears() {
@@ -74,44 +50,12 @@ public class LawyerProfileResponse {
         this.experienceYears = experienceYears;
     }
 
-    public String getBio() {
-        return bio;
-    }
-
-    public void setBio(String bio) {
-        this.bio = bio;
-    }
-
     public BigDecimal getConsultationFee() {
         return consultationFee;
     }
 
     public void setConsultationFee(BigDecimal consultationFee) {
         this.consultationFee = consultationFee;
-    }
-
-    public String getCity() {
-        return city;
-    }
-
-    public void setCity(String city) {
-        this.city = city;
-    }
-
-    public String getOfficeAddress() {
-        return officeAddress;
-    }
-
-    public void setOfficeAddress(String officeAddress) {
-        this.officeAddress = officeAddress;
-    }
-
-    public Boolean getVerified() {
-        return verified;
-    }
-
-    public void setVerified(Boolean verified) {
-        this.verified = verified;
     }
 
     public Double getRating() {

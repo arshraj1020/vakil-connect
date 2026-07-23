@@ -8,6 +8,7 @@ public class CurrentUserResponse {
     private String fullName;
     private String email;
     private String phoneNumber;
+    private String role;
 
     public CurrentUserResponse() {
     }
@@ -42,5 +43,13 @@ public class CurrentUserResponse {
 
     public void setPhoneNumber(String phoneNumber) {
         this.phoneNumber = phoneNumber;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

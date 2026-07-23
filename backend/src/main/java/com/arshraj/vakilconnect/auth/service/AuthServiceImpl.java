@@ -6,6 +6,7 @@ import com.arshraj.vakilconnect.auth.dto.RegisterRequest;
 import com.arshraj.vakilconnect.auth.dto.RegisterResponse;
 import com.arshraj.vakilconnect.security.jwt.JwtService;
 import com.arshraj.vakilconnect.user.entity.User;
+import com.arshraj.vakilconnect.user.enums.Role;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -47,6 +48,10 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setPhoneNumber(request.getPhoneNumber());
+
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            user.setRole(Role.valueOf(request.getRole().trim().toUpperCase()));
+        }
 
         User savedUser = userRepository.save(user);
 

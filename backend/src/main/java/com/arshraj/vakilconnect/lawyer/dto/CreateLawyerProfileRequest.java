@@ -2,6 +2,7 @@ package com.arshraj.vakilconnect.lawyer.dto;
 
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import java.util.List;
 
 public class CreateLawyerProfileRequest {
 
@@ -25,6 +26,10 @@ public class CreateLawyerProfileRequest {
 
     @NotBlank(message = "Office address is required")
     private String officeAddress;
+
+    @NotNull(message = "At least one specialization is required")
+    @Size(min = 1, message = "At least one specialization is required")
+    private List<String> specializations;
 
     public CreateLawyerProfileRequest() {
     }
@@ -75,5 +80,13 @@ public class CreateLawyerProfileRequest {
 
     public void setOfficeAddress(String officeAddress) {
         this.officeAddress = officeAddress;
+    }
+
+    public List<String> getSpecializations() {
+        return specializations;
+    }
+
+    public void setSpecializations(List<String> specializations) {
+        this.specializations = specializations;
     }
 }
