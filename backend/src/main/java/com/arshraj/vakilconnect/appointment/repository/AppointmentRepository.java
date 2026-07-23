@@ -1,6 +1,7 @@
 package com.arshraj.vakilconnect.appointment.repository;
 
 import com.arshraj.vakilconnect.appointment.entity.Appointment;
+import com.arshraj.vakilconnect.appointment.enums.AppointmentStatus;
 import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
 import com.arshraj.vakilconnect.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,4 +19,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     Optional<Appointment> findByIdAndClient(UUID id, User client);
 
     Optional<Appointment> findByIdAndLawyer(UUID id, Lawyer lawyer);
+
+    long countByStatus(AppointmentStatus status);
 }

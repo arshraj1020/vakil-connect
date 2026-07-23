@@ -31,6 +31,9 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private Role role = Role.CLIENT;
 
+    @Column(columnDefinition = "boolean default true")
+    private boolean active = true;
+
     public User() {
     }
 
@@ -80,5 +83,13 @@ public class User extends BaseEntity {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }

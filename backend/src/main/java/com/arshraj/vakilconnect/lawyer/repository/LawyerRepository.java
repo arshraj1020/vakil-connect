@@ -22,6 +22,12 @@ public interface LawyerRepository extends JpaRepository<Lawyer, UUID> {
 
     boolean existsByBarCouncilNumber(String barCouncilNumber);
 
+    Page<Lawyer> findByVerifiedFalse(Pageable pageable);
+
+    long countByVerifiedTrue();
+
+    long countByVerifiedFalse();
+
     @Query("""
             SELECT DISTINCT l FROM Lawyer l LEFT JOIN l.specializations s
             WHERE l.verified = true

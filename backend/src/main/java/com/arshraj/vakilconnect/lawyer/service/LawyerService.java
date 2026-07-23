@@ -29,4 +29,8 @@ public interface LawyerService {
 
     LawyerProfileResponse getLawyerProfile(UUID lawyerId);
 
+    Page<LawyerSummaryResponse> getPendingLawyers(Pageable pageable);
+
+    LawyerProfileResponse verifyLawyer(UUID lawyerId);
+
 }

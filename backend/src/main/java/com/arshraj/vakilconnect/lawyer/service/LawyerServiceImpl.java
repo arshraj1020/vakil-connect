@@ -110,6 +110,22 @@ public class LawyerServiceImpl implements LawyerService {
         return toProfileResponse(lawyer);
     }
 
+    @Override
+    public Page<LawyerSummaryResponse> getPendingLawyers(Pageable pageable) {
+        return lawyerRepository.findByVerifiedFalse(pageable)
+                .map(this::toSummaryResponse);
+    }
+
+    @Override
+    public LawyerProfileResponse verifyLawyer(UUID lawyerId) {
+        Lawyer lawyer = lawyerRepository.findById(lawyerId)
+                .orElseThrow(() -> new RuntimeException("Lawyer not found"));
+
+        lawyer.setVerified(true);
+
+        return toProfileResponse(lawyerRepository.save(lawyer));
+    }
+
     private String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
     }
