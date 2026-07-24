@@ -3,18 +3,19 @@ spring:
     name: vakilconnect
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/vakilconnect
-    username: arshraj
-    password:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/vakilconnect}
+    username: ${DB_USERNAME:arshraj}
+    password: ${DB_PASSWORD:}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     open-in-view: false
 
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
 
 springdoc:
   api-docs:
@@ -26,6 +27,9 @@ logging:
   level:
     org.springframework.security: DEBUG
 
+# JWT_SECRET is intentionally NOT defaulted: the app must fail to start if it
+# is missing, so a known/committed secret can never be used by accident.
+# Generate one with:  openssl rand -base64 32
 jwt:
-  secret: 0qtB0lVtSmXP6wmQMO9nv/PuYw19uwXqCCMUp4GIN6w=
-  expiration: 86400000
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
