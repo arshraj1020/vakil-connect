@@ -1,5 +1,6 @@
 package com.arshraj.vakilconnect.user.service;
 
+import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.user.dto.CurrentUserResponse;
 import com.arshraj.vakilconnect.user.entity.User;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
@@ -18,7 +19,7 @@ public class UserServiceImpl implements UserService {
     public CurrentUserResponse getCurrentUser(String email) {
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         CurrentUserResponse response = new CurrentUserResponse();
 

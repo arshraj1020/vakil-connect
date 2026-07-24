@@ -12,12 +12,12 @@
 
 <!-- Tech Badges -->
 <p>
- <img src="https://img.shields.io/badge/Java-17-007396?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java"/>
- <img src="https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"/>
+ <img src="https://img.shields.io/badge/Java-21-007396?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java"/>
+ <img src="https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot"/>
+ <img src="https://img.shields.io/badge/Spring%20Security-JWT-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white" alt="Spring Security"/>
  <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
  <img src="https://img.shields.io/badge/Next.js-Planned-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js"/>
  <img src="https://img.shields.io/badge/FastAPI-Planned-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"/>
- <img src="https://img.shields.io/badge/Docker-Planned-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
 </p>
 
 <!-- Status Badges -->
@@ -25,7 +25,7 @@
  <img src="https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge&labelColor=0d1117" alt="License"/>
  <img src="https://img.shields.io/badge/Status-Active%20Development-yellow?style=for-the-badge&labelColor=0d1117" alt="Status"/>
  <img src="https://img.shields.io/badge/Repository-Private-critical?style=for-the-badge&labelColor=0d1117" alt="Visibility"/>
- <img src="https://img.shields.io/badge/Last%20Commit-Active-D4AF37?style=for-the-badge&labelColor=0d1117" alt="Last Commit"/>
+ <img src="https://img.shields.io/badge/Backend-Core%20Complete-D4AF37?style=for-the-badge&labelColor=0d1117" alt="Backend"/>
 </p>
 
 <br/>
@@ -80,11 +80,11 @@
 
 > **VakilConnect** is a full-stack legal-tech platform engineered to simplify the process of finding, evaluating, and consulting lawyers. It connects clients with verified legal professionals, enables secure scheduling and document handling, and layers in AI-assisted guidance to help users understand legal matters before they ever step into a consultation.
 
-The platform is being built using modern software engineering practices — clean architecture, layered backend design, secure-by-default authentication, and clearly documented APIs — with the long-term goal of evolving into a scalable, microservices-based legal-tech ecosystem.
+The platform is being built using modern software engineering practices — clean architecture, layered backend design, secure-by-default authentication, role-based authorization, and clearly documented APIs — with the long-term goal of evolving into a scalable, microservices-based legal-tech ecosystem.
 
 <div align="center">
 
-> **Project status:** VakilConnect is a **private, personal project** under active development. The backend foundation (Spring Boot, PostgreSQL, Flyway, Spring Security) is being built first, with authorization, lawyer/appointment modules, the frontend, AI service, and infrastructure layers planned in subsequent phases. This repository is **not intended for public use, deployment, or distribution.**
+> **Project status:** VakilConnect is a **private, personal project** under active development. The **core backend is functionally complete** — JWT authentication and role-based authorization, the lawyer, appointment, review, and admin modules, centralized exception handling, and OpenAPI docs are all implemented. The frontend, AI service, document storage, and infrastructure layers are planned in subsequent phases. This repository is **not intended for public use, deployment, or distribution.**
 
 </div>
 
@@ -94,7 +94,7 @@ The platform is being built using modern software engineering practices — clea
 
 <div align="center">
 
-`Overall Backend Foundation: ▓▓▓▓░░░░░░ 40%`
+`Overall Backend: ▓▓▓▓▓▓▓▓░░ 80%`
 
 </div>
 
@@ -102,29 +102,34 @@ A snapshot of what's actually working today in the backend:
 
 - [x] Spring Boot project scaffolded with a clean layered architecture
 - [x] PostgreSQL database integration
-- [x] Flyway-managed database migrations for schema versioning
-- [x] Spring Security configured for the application
+- [x] Database migration scripts for schema versioning (Flyway)
+- [x] Spring Security configured with a stateless JWT filter chain
 - [x] Password hashing using BCrypt
-- [x] User Registration API
-- [x] User Login API
-- [x] JWT token generation on successful authentication
+- [x] User Registration API (role-aware: CLIENT / LAWYER)
+- [x] User Login API with signed JWT issuance
+- [x] **JWT authorization filter enforcing protected routes**
+- [x] **Role-based access control (CLIENT / LAWYER / ADMIN)**
+- [x] **Lawyer module** — profile creation, public search & filtering, profile detail
+- [x] **Appointment module** — book, cancel, history, accept, reject, complete
+- [x] **Review module** — post reviews on completed appointments, auto rating aggregation
+- [x] **Admin module** — verify lawyers, manage users, moderate reviews, platform analytics
+- [x] **Centralized exception handling** with correct HTTP status codes (400/401/403/404/409)
+- [x] Bean validation on request DTOs
 - [x] Swagger / OpenAPI documentation integrated
 - [x] DTO pattern for request/response contracts
-- [x] Repository–Service–Controller layering in place
+- [x] Repository–Service–Controller layering throughout
 
 <details>
 <summary><b> Not Yet Implemented — Click to expand</b></summary>
 <br/>
 
-- [] JWT authorization filter (route protection)
-- [] Role-based access control
-- [] Lawyer module
-- [] Appointment module
-- [] Document upload
-- [] AI service
-- [] Frontend
-- [] Docker
-- [] CI/CD
+- [ ] Lawyer availability / scheduling slots
+- [ ] Secure document upload & storage
+- [ ] Notification system (email / in-app)
+- [ ] AI service (recommendations, summarization, Q&A)
+- [ ] Automated test suite (unit / integration / security)
+- [ ] Frontend (Next.js)
+- [ ] Docker & CI/CD
 
 See the [Development Roadmap](#development-roadmap) for full sequencing.
 
@@ -140,13 +145,12 @@ See the [Development Roadmap](#development-roadmap) for full sequencing.
 
 | For Clients | For Lawyers | For Admins | AI-Assisted *(Planned)* |
 |:---|:---|:---|:---|
-| Account registration & secure login | Registration & profile verification | Verify & approve lawyer registrations | Conversational AI legal assistant |
-| Search & discover lawyers | Profile & credential management | Manage client/lawyer accounts | Smart lawyer recommendation engine |
-| Filter by specialization & availability | Availability & scheduling config | Platform-wide analytics | Automated document summarization |
-| Book & manage appointments | Accept/decline appointment requests | Content & review moderation | AI-driven legal Q&A |
-| Upload & store legal documents | Manage active/past consultations | | Contextual legal guidance |
-| View appointment history | | | |
-| Leave reviews & ratings | | | |
+| Account registration & secure login ✅ | Registration & profile creation ✅ | Verify & approve lawyers ✅ | Conversational AI legal assistant |
+| Search & discover lawyers ✅ | Credential / profile management ✅ | Manage client/lawyer accounts ✅ | Smart lawyer recommendation engine |
+| Filter by specialization, city, fee, rating ✅ | Accept/reject appointment requests ✅ | Moderate reviews ✅ | Automated document summarization |
+| Book & manage appointments ✅ | View & manage schedule ✅ | Platform-wide analytics ✅ | AI-driven legal Q&A |
+| Review completed consultations ✅ | Mark consultations complete ✅ | Activate / deactivate accounts ✅ | Contextual legal guidance |
+| View appointment history ✅ | | | |
 
 </div>
 
@@ -155,12 +159,11 @@ See the [Development Roadmap](#development-roadmap) for full sequencing.
 <br/>
 
 - [x] Account registration and secure login
-- [] Search and discover lawyers by specialization, location, and rating
-- [] Filter lawyers by practice area and availability
-- [] Book and manage appointments
-- [] Upload and store legal documents securely
-- [] View complete appointment history
-- [] Leave reviews and ratings for consultations
+- [x] Search and discover lawyers by keyword
+- [x] Filter lawyers by specialization, city, consultation fee, experience, and rating
+- [x] Book and manage appointments (book, cancel, view history)
+- [x] Leave reviews and ratings for completed consultations
+- [ ] Upload and store legal documents securely
 
 </details>
 
@@ -168,11 +171,12 @@ See the [Development Roadmap](#development-roadmap) for full sequencing.
 <summary><b> Lawyer Features — Click to expand</b></summary>
 <br/>
 
-- [] Lawyer registration and profile verification
-- [] Profile and credential management
-- [] Availability and scheduling configuration
-- [] Accept or decline incoming appointment requests
-- [] Manage active and past consultations
+- [x] Lawyer registration (role-aware signup)
+- [x] Professional profile creation with specializations
+- [x] View appointment schedule
+- [x] Accept, reject, or complete incoming appointment requests
+- [ ] Availability and scheduling configuration
+- [ ] Access uploaded client documents before consultations
 
 </details>
 
@@ -180,10 +184,10 @@ See the [Development Roadmap](#development-roadmap) for full sequencing.
 <summary><b> Admin Features — Click to expand</b></summary>
 <br/>
 
-- [] Verify and approve lawyer registrations
-- [] Manage client and lawyer accounts
-- [] Access platform-wide analytics and reporting
-- [] Moderate content and reviews
+- [x] Verify and approve pending lawyer registrations
+- [x] Manage client and lawyer accounts (list, activate, deactivate)
+- [x] Moderate and remove inappropriate reviews (with rating recalculation)
+- [x] Access platform-wide analytics (users, lawyers, appointments, reviews)
 
 </details>
 
@@ -191,11 +195,11 @@ See the [Development Roadmap](#development-roadmap) for full sequencing.
 <summary><b> AI-Assisted Capabilities — Click to expand</b></summary>
 <br/>
 
-- [] Conversational AI legal assistant for preliminary guidance
-- [] Smart lawyer recommendation engine based on case type
-- [] Automated legal document summarization
-- [] AI-driven legal Q&A
-- [] Contextual legal guidance to help users prepare for consultations
+- [ ] Conversational AI legal assistant for preliminary guidance
+- [ ] Smart lawyer recommendation engine based on case type
+- [ ] Automated legal document summarization
+- [ ] AI-driven legal Q&A
+- [ ] Contextual legal guidance to help users prepare for consultations
 
 </details>
 
@@ -207,7 +211,7 @@ VakilConnect follows a modular, service-oriented architecture designed to separa
 
 ```mermaid
 flowchart TD
- A[" Next.js Frontend<br/>Client / Lawyer / Admin Dashboards<br/><i>(Planned)</i>"] -->|REST / HTTPS| B[" Spring Boot API<br/>Auth · Bookings · Profiles · Reviews<br/><i>(In Development)</i>"]
+ A[" Next.js Frontend<br/>Client / Lawyer / Admin Dashboards<br/><i>(Planned)</i>"] -->|REST / HTTPS| B[" Spring Boot API<br/>Auth · RBAC · Lawyers · Appointments · Reviews · Admin<br/><i>(Core Complete)</i>"]
  B --> C[" PostgreSQL DB<br/>Primary Store<br/><i>(Implemented)</i>"]
  B --> D[" FastAPI AI Layer<br/>Recommendations · Summarization<br/><i>(Planned)</i>"]
  B --> E[" AWS S3<br/>Document Storage<br/><i>(Planned)</i>"]
@@ -225,7 +229,7 @@ flowchart TD
 
 </div>
 
-> This diagram represents the target end-state architecture. Currently, only the **Spring Boot API** and **PostgreSQL** layers are implemented; the frontend, AI layer, and document storage are planned. Detailed architecture diagrams (component, sequence, and deployment views) will be added as each service layer is implemented.
+> This diagram represents the target end-state architecture. Currently, the **Spring Boot API** (auth, authorization, lawyers, appointments, reviews, admin) and **PostgreSQL** layers are implemented; the frontend, AI layer, and document storage are planned.
 
 ---
 
@@ -236,6 +240,7 @@ sequenceDiagram
  actor User
  participant API as Spring Boot API
  participant Sec as Spring Security
+ participant JWT as JWT Filter
  participant DB as PostgreSQL
 
  User->>API: POST /api/auth/register
@@ -251,7 +256,15 @@ sequenceDiagram
  Sec-->>API: Signed token
  API-->>User: 200 OK + JWT
 
- Note over User,API: Protected routes not yet enforced —<br/>JWT authorization filter in development
+ User->>API: GET /api/client/appointments (Bearer token)
+ API->>JWT: Validate & parse token
+ JWT->>Sec: Set authentication + authorities
+ Sec->>Sec: Authorize by role (CLIENT)
+ Sec->>DB: Fetch data
+ DB-->>API: Result
+ API-->>User: 200 OK
+
+ Note over User,API: Protected routes are enforced by the JWT<br/>filter and role-based access control.
 ```
 
 ---
@@ -273,12 +286,13 @@ sequenceDiagram
 | Layer | Technology | Status |
 |:---|:---|:---:|
 | **Frontend** | Next.js + TypeScript | Planned |
-| **Backend** | Spring Boot (Java) | In Development |
+| **Backend** | Spring Boot 3.5 (Java 21) | Core Complete |
 | **Database** | PostgreSQL | Implemented |
 | **DB Migrations** | Flyway | Implemented |
-| **Authentication** | Spring Security + JWT (token generation) | In Development |
-| **Authorization** | JWT Filter + Role-Based Access Control | Planned |
-| **API Documentation** | Swagger / OpenAPI | Implemented |
+| **Authentication** | Spring Security + JWT | Implemented |
+| **Authorization** | JWT Filter + Role-Based Access Control | Implemented |
+| **Validation & Errors** | Jakarta Validation + Global Exception Handler | Implemented |
+| **API Documentation** | Swagger / OpenAPI (springdoc) | Implemented |
 | **AI Service** | FastAPI + LangChain | Planned |
 | **File Storage** | AWS S3 | Planned |
 | **Containerization** | Docker | Planned |
@@ -315,29 +329,30 @@ flowchart LR
  style I fill:#0d1117,stroke:#D4AF37,color:#fff
 ```
 
-This structure keeps business logic isolated from infrastructure concerns, making the codebase easier to test, extend, and eventually decompose into independent microservices.
+The codebase is organized by **feature module** (`auth`, `user`, `lawyer`, `appointment`, `review`, `admin`, `security`, `common`), each with its own controllers, services, repositories, DTOs, and entities. This keeps business logic isolated from infrastructure concerns and makes the codebase easy to test, extend, and eventually decompose into independent microservices.
 
 ---
 
 ## Planned Microservices
 
-As the platform matures, the monolithic Spring Boot backend is intended to evolve into a set of focused, independently deployable services:
+As the platform matures, the modular Spring Boot backend is intended to evolve into a set of focused, independently deployable services:
 
 <div align="center">
 
-| Service | Responsibility |
-|:---|:---|
-| **Auth Service** | User authentication, JWT issuance, and role-based access control |
-| **User Service** | Client and lawyer profile management |
-| **Appointment Service** | Booking, scheduling, and availability management |
-| **Document Service** | Secure document upload, storage, and retrieval via AWS S3 |
-| **Review Service** | Ratings, feedback, and reputation management |
-| **AI Service** | FastAPI-based service for recommendations, summarization, and legal Q&A |
-| **Notification Service** | Email and in-app notifications for bookings and updates |
+| Service | Responsibility | Current State |
+|:---|:---|:---:|
+| **Auth Service** | Authentication, JWT issuance, role-based access control | Implemented (in monolith) |
+| **User Service** | Client and lawyer profile management | Implemented (in monolith) |
+| **Appointment Service** | Booking, scheduling, and lifecycle management | Implemented (in monolith) |
+| **Review Service** | Ratings, feedback, and reputation management | Implemented (in monolith) |
+| **Admin Service** | Verification, moderation, and analytics | Implemented (in monolith) |
+| **Document Service** | Secure document upload, storage, retrieval via AWS S3 | Planned |
+| **AI Service** | FastAPI-based recommendations, summarization, legal Q&A | Planned |
+| **Notification Service** | Email and in-app notifications | Planned |
 
 </div>
 
-> This is a **forward-looking design goal**, not a current implementation. The platform begins as a well-structured monolith and will be decomposed incrementally as features stabilize.
+> The platform begins as a well-structured modular monolith and will be decomposed incrementally as features stabilize.
 
 ---
 
@@ -345,15 +360,19 @@ As the platform matures, the monolithic Spring Boot backend is intended to evolv
 
 Security is treated as a first-class concern throughout the platform's design:
 
-- [x] **Spring Security** configured for authentication
+- [x] **Spring Security** with a stateless (`SessionCreationPolicy.STATELESS`) filter chain
 - [x] **BCrypt password hashing** for all stored user credentials
-- [x] **JWT token generation** issued on successful login for stateless authentication
-- [] **JWT authorization filter** to protect routes using issued tokens
-- [] **Role-based access control** distinguishing Client, Lawyer, and Admin permissions
-- [~] **Input validation** at the controller and service layers *(in progress)*
-- [~] **Centralized exception handling** to avoid leaking internal implementation details *(in progress)*
-- [] **HTTPS-only communication** in production deployments
-- [] **Secure document storage** via AWS S3 with access-controlled URLs
+- [x] **JWT token generation** issued on successful login
+- [x] **JWT authorization filter** validating and parsing tokens on every protected request
+- [x] **Role-based access control** distinguishing CLIENT, LAWYER, and ADMIN permissions
+- [x] **Account activation gate** — deactivated users are rejected at authentication
+- [x] **Input validation** on request DTOs via Jakarta Bean Validation
+- [x] **Centralized exception handling** returning correct status codes without leaking internals (no stack traces, SQL, or Hibernate details)
+- [x] **Structured 401 / 403 responses** via custom `AuthenticationEntryPoint` and `AccessDeniedHandler`
+- [ ] **HTTPS-only communication** in production deployments
+- [ ] **CORS policy** for the browser frontend
+- [ ] **Externalized secrets** (JWT key / DB credentials via environment)
+- [ ] **Secure document storage** via AWS S3 with access-controlled URLs
 
 ---
 
@@ -361,39 +380,26 @@ Security is treated as a first-class concern throughout the platform's design:
 
 ```text
 vakil-connect/
-├── backend/ # Spring Boot application
-│ ├── src/main/java/
-│ │ ├── controller/ # REST API endpoints
-│ │ ├── service/ # Business logic
-│ │ ├── repository/ # Spring Data JPA repositories
-│ │ ├── entity/ # JPA entities / domain models
-│ │ ├── dto/ # Data Transfer Objects
-│ │ ├── security/ # Spring Security & JWT config
-│ │ ├── exception/ # Custom exceptions & handlers
-│ │ └── config/ # App, Swagger, and bean configuration
-│ ├── src/main/resources/
-│ │ ├── application.yml # Application configuration
-│ │ └── db/migration/ # Flyway database migration scripts
-│ └── pom.xml
+├── backend/                         # Spring Boot application
+│  ├── src/main/java/com/arshraj/vakilconnect/
+│  │  ├── auth/                       # Registration, login, JWT issuance
+│  │  ├── user/                       # User entity, current-user endpoint
+│  │  ├── lawyer/                     # Lawyer profiles, search, specializations
+│  │  ├── appointment/                # Booking lifecycle
+│  │  ├── review/                     # Ratings & reviews
+│  │  ├── admin/                      # Verification, moderation, analytics
+│  │  ├── security/                   # JWT filter, handlers, user details
+│  │  ├── common/                     # Base entity, exceptions, shared code
+│  │  └── config/                     # Security & Swagger configuration
+│  ├── src/main/resources/
+│  │  ├── application.yaml            # Application configuration
+│  │  └── db/migration/               # Flyway migration scripts
+│  └── pom.xml
 │
-├── frontend/ # Next.js application (planned)
-│ ├── app/
-│ ├── components/
-│ └── lib/
-│
-├── ai-service/ # FastAPI AI microservice (planned)
-│ ├── app/
-│ ├── models/
-│ └── requirements.txt
-│
-├── database/ # Schema design & ER diagrams
-│
-├── docker/ # Docker & Compose configurations (planned)
-│
-├── docs/ # Architecture docs, API specs, diagrams
-│
-├── assets/ # Images, diagrams, branding assets
-│
+├── frontend/                        # Next.js application (planned)
+├── ai-service/                      # FastAPI AI microservice (planned)
+├── database/                        # Schema design & ER diagrams
+├── docs/                            # Requirements, use cases, DB design
 └── README.md
 ```
 
@@ -401,19 +407,40 @@ vakil-connect/
 
 ## API Documentation
 
-API documentation is generated using **Swagger / OpenAPI** and is integrated directly into the Spring Boot backend.
+API documentation is generated using **Swagger / OpenAPI** (springdoc) and is integrated directly into the Spring Boot backend.
 
-- Interactive Swagger UI is available at `/swagger-ui.html` when the backend is run locally
-- A full hosted API reference (Postman collection / OpenAPI spec) is **coming soon**
+- Interactive Swagger UI is available at `/swagger-ui/index.html` when the backend is run locally
+- The OpenAPI spec is served at `/v3/api-docs`
 
 <div align="center">
 
-### Currently Available Endpoints
+### Implemented Endpoints
 
-| Endpoint | Method | Description | Status |
-|:---|:---:|:---|:---:|
-| `/api/auth/register` | `POST` | Registers a new user with hashed (BCrypt) password storage | Implemented |
-| `/api/auth/login` | `POST` | Authenticates a user and returns a signed JWT access token | Implemented |
+| Endpoint | Method | Access | Description |
+|:---|:---:|:---:|:---|
+| `/api/auth/register` | `POST` | Public | Register a new CLIENT or LAWYER (BCrypt-hashed) |
+| `/api/auth/login` | `POST` | Public | Authenticate and receive a signed JWT |
+| `/api/users/me` | `GET` | Any auth | Current authenticated user profile |
+| `/api/lawyers` | `GET` | Public | Search & filter verified lawyers (paged) |
+| `/api/lawyers/{id}` | `GET` | Public | Lawyer profile detail |
+| `/api/lawyers/{id}/reviews` | `GET` | Public | Paged reviews for a lawyer |
+| `/api/lawyer/profile` | `POST` | LAWYER | Create the authenticated lawyer's profile |
+| `/api/lawyer/appointments` | `GET` | LAWYER | View appointment schedule |
+| `/api/lawyer/appointments/{id}/accept` | `PUT` | LAWYER | Accept a pending appointment |
+| `/api/lawyer/appointments/{id}/reject` | `PUT` | LAWYER | Reject a pending appointment |
+| `/api/lawyer/appointments/{id}/complete` | `PUT` | LAWYER | Mark an accepted appointment complete |
+| `/api/client/appointments` | `POST` | CLIENT | Book an appointment |
+| `/api/client/appointments` | `GET` | CLIENT | View appointment history |
+| `/api/client/appointments/{id}/cancel` | `PUT` | CLIENT | Cancel an appointment |
+| `/api/client/appointments/{id}/review` | `POST` | CLIENT | Review a completed appointment |
+| `/api/admin/lawyers/pending` | `GET` | ADMIN | List lawyers awaiting verification |
+| `/api/admin/lawyers/{id}/verify` | `PUT` | ADMIN | Verify a lawyer |
+| `/api/admin/users` | `GET` | ADMIN | List users (optional role filter) |
+| `/api/admin/users/{id}/activate` | `PUT` | ADMIN | Activate a user account |
+| `/api/admin/users/{id}/deactivate` | `PUT` | ADMIN | Deactivate a user account |
+| `/api/admin/reviews` | `GET` | ADMIN | List reviews for moderation |
+| `/api/admin/reviews/{id}` | `DELETE` | ADMIN | Remove a review (recomputes rating) |
+| `/api/admin/analytics` | `GET` | ADMIN | Platform-wide statistics |
 
 </div>
 
@@ -423,16 +450,14 @@ API documentation is generated using **Swagger / OpenAPI** and is integrated dir
 
 | Endpoint | Method | Description |
 |:---|:---:|:---|
-| `/api/lawyers` | `GET` | List/search verified lawyers |
-| `/api/lawyers/{id}` | `GET` | Get lawyer profile detail |
-| `/api/appointments` | `POST` | Book a new appointment |
-| `/api/appointments/{id}` | `PATCH` | Update/cancel an appointment |
+| `/api/lawyer/availability` | `POST` | Configure consultation availability slots |
 | `/api/documents` | `POST` | Upload a legal document |
-| `/api/reviews` | `POST` | Submit a review/rating |
+| `/api/documents/{id}` | `GET` | Retrieve a stored document |
+| `/api/notifications` | `GET` | Fetch user notifications |
+| `/api/ai/recommend` | `POST` | AI lawyer recommendation |
+| `/api/ai/summarize` | `POST` | AI document summarization |
 
 </details>
-
-> Note: Issued JWTs are **not yet enforced** on protected routes, since the authorization filter is still in development.
 
 ---
 
@@ -442,15 +467,15 @@ API documentation is generated using **Swagger / OpenAPI** and is integrated dir
 
 ![Screenshots Placeholder](https://via.placeholder.com/800x400/0d1117/D4AF37?text=%F0%9F%96%A5%EF%B8%8F+UI+Coming+Soon)
 
-*Application screenshots and UI walkthroughs will be added here once the Next.js frontend reaches a demonstrable state.*
+*Application screenshots and UI walkthroughs will be added here once the Next.js frontend reaches a demonstrable state. The backend can be explored today via Swagger UI.*
 
 </div>
 
 **Coming soon:**
-- [] Client dashboard preview
-- [] Lawyer profile and availability view
-- [] Appointment booking flow
-- [] Admin analytics panel
+- [ ] Client dashboard preview
+- [ ] Lawyer profile and availability view
+- [ ] Appointment booking flow
+- [ ] Admin analytics panel
 
 ---
 
@@ -462,7 +487,7 @@ API documentation is generated using **Swagger / OpenAPI** and is integrated dir
 
 | Requirement | Minimum Version |
 |:---|:---:|
-| Java (JDK) | 17+ |
+| Java (JDK) | 21+ |
 | Maven | 3.8+ |
 | PostgreSQL | 14+ |
 | Git | Latest |
@@ -475,13 +500,12 @@ API documentation is generated using **Swagger / OpenAPI** and is integrated dir
 git clone <repository-url>
 cd vakil-connect/backend
 
-# Configure database credentials in application.yml
+# Create the database and configure credentials in application.yaml
 # (see Environment Variables section below)
+createdb vakilconnect
 
-mvn clean install
+./mvnw clean install
 ```
-
-Flyway will automatically run pending migrations against the configured database on application startup.
 
 ### ▶ Running the Project
 
@@ -490,7 +514,7 @@ Flyway will automatically run pending migrations against the configured database
 
 ```bash
 cd backend
-mvn spring-boot:run
+./mvnw spring-boot:run
 ```
 
 The API server will start on:
@@ -502,8 +526,11 @@ http://localhost:8080
 Swagger documentation is available at:
 
 ```text
-http://localhost:8080/swagger-ui.html
+http://localhost:8080/swagger-ui/index.html
 ```
+
+> An admin account cannot be created through public registration by design. To create one, register a user and promote it directly in the database:
+> `UPDATE users SET role = 'ADMIN' WHERE email = 'you@example.com';`
 
 </details>
 
@@ -533,36 +560,33 @@ uvicorn app.main:app --reload
 
 ## Environment Variables
 
-Create an `application.yml` (or `.env` for frontend/AI service) using the template below. **Never commit real credentials to version control.**
+Configure `application.yaml` using the template below. **Never commit real credentials to version control.**
 
 <details open>
-<summary><b>Backend (application.yml)</b></summary>
+<summary><b>Backend (application.yaml)</b></summary>
 
 ```yaml
 spring:
- datasource:
- url: jdbc:postgresql://localhost:5432/vakilconnect
- username: your_db_username
- password: your_db_password
+  datasource:
+    url: jdbc:postgresql://localhost:5432/vakilconnect
+    username: your_db_username
+    password: your_db_password
 
- flyway:
- enabled: true
- locations: classpath:db/migration
-
- jpa:
- hibernate:
- ddl-auto: validate
- show-sql: true
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
 
 jwt:
- secret: your_jwt_secret_key
- expiration: 86400000
+  secret: your_base64_encoded_secret
+  expiration: 86400000
 
 server:
- port: 8080
+  port: 8080
 ```
 
-> `ddl-auto` is set to `validate` (rather than `update`) since schema changes are now managed through Flyway migrations.
+> **Note:** The current dev configuration uses Hibernate `ddl-auto: update`. Migration to Flyway-managed schema with `ddl-auto: validate` is planned for production hardening.
 
 </details>
 
@@ -602,36 +626,40 @@ The project is being developed in clearly scoped phases to ensure a stable found
 - [x] Project setup and repository structure
 - [x] Database schema design
 - [x] Core backend architecture (layered Spring Boot setup)
-- [x] Flyway migration setup
+- [x] Database migration setup
 
 <div align="center">
 
 ### Phase 2 — Core Backend Functionality
-`Progress: ▓▓▓▓▓▓░░░░ 60%`
+`Progress: ▓▓▓▓▓▓▓▓▓░ 90%`
 
 </div>
 
 - [x] Spring Security configuration
 - [x] Password hashing with BCrypt
-- [x] User Registration API
+- [x] User Registration API (role-aware)
 - [x] User Login API
 - [x] JWT token generation on login
-- [] JWT authorization filter for protected routes
-- [] Role-based access control (Client / Lawyer / Admin)
-- [] Lawyer registration and profile management
-- [] Appointment booking and scheduling system
+- [x] JWT authorization filter for protected routes
+- [x] Role-based access control (Client / Lawyer / Admin)
+- [x] Lawyer registration and profile management
+- [x] Lawyer search & filtering
+- [x] Appointment booking and lifecycle system
+- [x] Centralized exception handling & structured errors
+- [ ] Lawyer availability / scheduling slots
 
 <div align="center">
 
 ### Phase 3 — Platform Features
-`Progress: ░░░░░░░░░░ 0%`
+`Progress: ▓▓▓▓▓░░░░░ 50%`
 
 </div>
 
-- [] Reviews and ratings module
-- [] Notification system (email / in-app)
-- [] Secure document upload and management
-- [] Admin verification and moderation tools
+- [x] Reviews and ratings module
+- [x] Admin verification and moderation tools
+- [x] Platform analytics
+- [ ] Notification system (email / in-app)
+- [ ] Secure document upload and management
 
 <div align="center">
 
@@ -640,10 +668,10 @@ The project is being developed in clearly scoped phases to ensure a stable found
 
 </div>
 
-- [] FastAPI AI service scaffolding
-- [] AI-powered lawyer recommendation engine
-- [] AI legal assistant for preliminary Q&A
-- [] Document summarization pipeline
+- [ ] FastAPI AI service scaffolding
+- [ ] AI-powered lawyer recommendation engine
+- [ ] AI legal assistant for preliminary Q&A
+- [ ] Document summarization pipeline
 
 <div align="center">
 
@@ -652,10 +680,10 @@ The project is being developed in clearly scoped phases to ensure a stable found
 
 </div>
 
-- [] Next.js project setup with TypeScript
-- [] Client-facing dashboard and search experience
-- [] Lawyer dashboard and availability management
-- [] Admin analytics dashboard
+- [ ] Next.js project setup with TypeScript
+- [ ] Client-facing dashboard and search experience
+- [ ] Lawyer dashboard and availability management
+- [ ] Admin analytics dashboard
 
 <div align="center">
 
@@ -664,11 +692,11 @@ The project is being developed in clearly scoped phases to ensure a stable found
 
 </div>
 
-- [] Unit and integration testing across services
-- [] Dockerization of backend, frontend, and AI service
-- [] CI/CD pipeline setup
-- [] AWS S3 integration for document storage
-- [] Production cloud deployment
+- [ ] Unit and integration testing across services
+- [ ] Dockerization of backend, frontend, and AI service
+- [ ] CI/CD pipeline setup
+- [ ] AWS S3 integration for document storage
+- [ ] Production cloud deployment
 
 ---
 

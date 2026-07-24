@@ -5,6 +5,7 @@ import com.arshraj.vakilconnect.admin.dto.AnalyticsResponse;
 import com.arshraj.vakilconnect.admin.dto.UserSummaryResponse;
 import com.arshraj.vakilconnect.appointment.enums.AppointmentStatus;
 import com.arshraj.vakilconnect.appointment.repository.AppointmentRepository;
+import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerProfileResponse;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerSummaryResponse;
 import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
@@ -66,7 +67,7 @@ public class AdminServiceImpl implements AdminService {
     @Transactional
     public UserSummaryResponse setUserActive(UUID userId, boolean active) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         user.setActive(active);
 
@@ -82,7 +83,7 @@ public class AdminServiceImpl implements AdminService {
     @Transactional
     public void deleteReview(UUID reviewId) {
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new RuntimeException("Review not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
 
         Lawyer lawyer = review.getLawyer();
 

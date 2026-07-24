@@ -4,6 +4,8 @@ import com.arshraj.vakilconnect.auth.dto.LoginRequest;
 import com.arshraj.vakilconnect.auth.dto.LoginResponse;
 import com.arshraj.vakilconnect.auth.dto.RegisterRequest;
 import com.arshraj.vakilconnect.auth.dto.RegisterResponse;
+import com.arshraj.vakilconnect.common.exception.DuplicateResourceException;
+import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.security.jwt.JwtService;
 import com.arshraj.vakilconnect.user.entity.User;
 import com.arshraj.vakilconnect.user.enums.Role;
@@ -39,7 +41,7 @@ public class AuthServiceImpl implements AuthService {
         String email = request.getEmail().trim().toLowerCase();
 
         if (userRepository.existsByEmail(email)) {
-            throw new RuntimeException("Email already exists.");
+            throw new DuplicateResourceException("Email already exists.");
         }
 
         User user = new User();
@@ -75,7 +77,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         User user = userRepository.findByEmail(request.getEmail().trim().toLowerCase())
-                .orElseThrow(() -> new RuntimeException("User not found."));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
 
         String token = jwtService.generateToken(user.getEmail());
 

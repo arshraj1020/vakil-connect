@@ -5,6 +5,8 @@ import com.arshraj.vakilconnect.appointment.dto.BookAppointmentRequest;
 import com.arshraj.vakilconnect.appointment.entity.Appointment;
 import com.arshraj.vakilconnect.appointment.enums.AppointmentStatus;
 import com.arshraj.vakilconnect.appointment.repository.AppointmentRepository;
+import com.arshraj.vakilconnect.common.exception.BusinessRuleException;
+import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
 import com.arshraj.vakilconnect.lawyer.repository.LawyerRepository;
 import com.arshraj.vakilconnect.user.entity.User;
@@ -37,10 +39,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         User client = getUser(clientEmail);
 
         Lawyer lawyer = lawyerRepository.findById(request.getLawyerId())
-                .orElseThrow(() -> new RuntimeException("Lawyer not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
 
         if (!Boolean.TRUE.equals(lawyer.getVerified())) {
-            throw new RuntimeException("This lawyer is not yet verified and cannot accept appointments.");
+            throw new BusinessRuleException("This lawyer is not yet verified and cannot accept appointments.");
         }
 
         Appointment appointment = new Appointment();
@@ -74,12 +76,12 @@ public class AppointmentServiceImpl implements AppointmentService {
         User client = getUser(clientEmail);
 
         Appointment appointment = appointmentRepository.findByIdAndClient(appointmentId, client)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         if (appointment.getStatus() == AppointmentStatus.COMPLETED
                 || appointment.getStatus() == AppointmentStatus.CANCELLED
                 || appointment.getStatus() == AppointmentStatus.REJECTED) {
-            throw new RuntimeException("This appointment can no longer be cancelled.");
+            throw new BusinessRuleException("This appointment can no longer be cancelled.");
         }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
@@ -105,7 +107,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = getOwnAppointment(appointmentId, lawyer);
 
         if (appointment.getStatus() != AppointmentStatus.PENDING) {
-            throw new RuntimeException("Only pending appointments can be accepted.");
+            throw new BusinessRuleException("Only pending appointments can be accepted.");
         }
 
         appointment.setStatus(AppointmentStatus.ACCEPTED);
@@ -120,7 +122,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = getOwnAppointment(appointmentId, lawyer);
 
         if (appointment.getStatus() != AppointmentStatus.PENDING) {
-            throw new RuntimeException("Only pending appointments can be rejected.");
+            throw new BusinessRuleException("Only pending appointments can be rejected.");
         }
 
         appointment.setStatus(AppointmentStatus.REJECTED);
@@ -135,7 +137,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = getOwnAppointment(appointmentId, lawyer);
 
         if (appointment.getStatus() != AppointmentStatus.ACCEPTED) {
-            throw new RuntimeException("Only accepted appointments can be marked as completed.");
+            throw new BusinessRuleException("Only accepted appointments can be marked as completed.");
         }
 
         appointment.setStatus(AppointmentStatus.COMPLETED);
@@ -145,18 +147,18 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     private Appointment getOwnAppointment(UUID appointmentId, Lawyer lawyer) {
         return appointmentRepository.findByIdAndLawyer(appointmentId, lawyer)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
     }
 
     private User getUser(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     private Lawyer getLawyerByEmail(String email) {
         User user = getUser(email);
         return lawyerRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Lawyer profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer profile not found"));
     }
 
     private AppointmentResponse toResponse(Appointment appointment) {

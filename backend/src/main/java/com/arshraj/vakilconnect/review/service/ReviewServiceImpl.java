@@ -3,6 +3,9 @@ package com.arshraj.vakilconnect.review.service;
 import com.arshraj.vakilconnect.appointment.entity.Appointment;
 import com.arshraj.vakilconnect.appointment.enums.AppointmentStatus;
 import com.arshraj.vakilconnect.appointment.repository.AppointmentRepository;
+import com.arshraj.vakilconnect.common.exception.BusinessRuleException;
+import com.arshraj.vakilconnect.common.exception.DuplicateResourceException;
+import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
 import com.arshraj.vakilconnect.lawyer.repository.LawyerRepository;
 import com.arshraj.vakilconnect.review.dto.CreateReviewRequest;
@@ -40,17 +43,17 @@ public class ReviewServiceImpl implements ReviewService {
     @Transactional
     public ReviewResponse createReview(String clientEmail, UUID appointmentId, CreateReviewRequest request) {
         User client = userRepository.findByEmail(clientEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Appointment appointment = appointmentRepository.findByIdAndClient(appointmentId, client)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         if (appointment.getStatus() != AppointmentStatus.COMPLETED) {
-            throw new RuntimeException("Only completed appointments can be reviewed.");
+            throw new BusinessRuleException("Only completed appointments can be reviewed.");
         }
 
         if (reviewRepository.existsByAppointmentId(appointmentId)) {
-            throw new RuntimeException("This appointment has already been reviewed.");
+            throw new DuplicateResourceException("This appointment has already been reviewed.");
         }
 
         Review review = new Review();
@@ -70,7 +73,7 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     public Page<ReviewResponse> getReviewsForLawyer(UUID lawyerId, Pageable pageable) {
         Lawyer lawyer = lawyerRepository.findById(lawyerId)
-                .orElseThrow(() -> new RuntimeException("Lawyer not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
 
         return reviewRepository.findByLawyerOrderByCreatedAtDesc(lawyer, pageable)
                 .map(this::toResponse);

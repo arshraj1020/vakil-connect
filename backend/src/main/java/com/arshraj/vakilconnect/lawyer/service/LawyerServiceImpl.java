@@ -1,5 +1,8 @@
 package com.arshraj.vakilconnect.lawyer.service;
 
+import com.arshraj.vakilconnect.common.exception.BusinessRuleException;
+import com.arshraj.vakilconnect.common.exception.DuplicateResourceException;
+import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.lawyer.dto.CreateLawyerProfileRequest;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerProfileResponse;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerSummaryResponse;
@@ -43,20 +46,20 @@ public class LawyerServiceImpl implements LawyerService {
 
         // Find logged-in user
         User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (user.getRole() != Role.LAWYER) {
-            throw new RuntimeException("Only users registered as LAWYER can create a lawyer profile.");
+            throw new BusinessRuleException("Only users registered as LAWYER can create a lawyer profile.");
         }
 
         // Prevent duplicate lawyer profile
         if (lawyerRepository.existsByUser(user)) {
-            throw new RuntimeException("Lawyer profile already exists.");
+            throw new DuplicateResourceException("Lawyer profile already exists.");
         }
 
         // Prevent duplicate Bar Council Number
         if (lawyerRepository.existsByBarCouncilNumber(request.getBarCouncilNumber())) {
-            throw new RuntimeException("Bar Council Number already registered.");
+            throw new DuplicateResourceException("Bar Council Number already registered.");
         }
 
         // Create Lawyer entity
@@ -105,7 +108,7 @@ public class LawyerServiceImpl implements LawyerService {
     @Override
     public LawyerProfileResponse getLawyerProfile(UUID lawyerId) {
         Lawyer lawyer = lawyerRepository.findById(lawyerId)
-                .orElseThrow(() -> new RuntimeException("Lawyer not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
 
         return toProfileResponse(lawyer);
     }
@@ -119,7 +122,7 @@ public class LawyerServiceImpl implements LawyerService {
     @Override
     public LawyerProfileResponse verifyLawyer(UUID lawyerId) {
         Lawyer lawyer = lawyerRepository.findById(lawyerId)
-                .orElseThrow(() -> new RuntimeException("Lawyer not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
 
         lawyer.setVerified(true);
 
