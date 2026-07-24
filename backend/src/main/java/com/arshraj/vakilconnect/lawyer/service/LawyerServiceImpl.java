@@ -6,6 +6,7 @@ import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.lawyer.dto.CreateLawyerProfileRequest;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerProfileResponse;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerSummaryResponse;
+import com.arshraj.vakilconnect.lawyer.dto.UpdateLawyerProfileRequest;
 import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
 import com.arshraj.vakilconnect.lawyer.entity.Specialization;
 import com.arshraj.vakilconnect.lawyer.repository.LawyerRepository;
@@ -16,6 +17,7 @@ import com.arshraj.vakilconnect.user.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
@@ -125,6 +127,28 @@ public class LawyerServiceImpl implements LawyerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
 
         lawyer.setVerified(true);
+
+        return toProfileResponse(lawyerRepository.save(lawyer));
+    }
+
+    @Override
+    @Transactional
+    public LawyerProfileResponse updateCurrentLawyerProfile(
+            String userEmail, UpdateLawyerProfileRequest request) {
+
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Lawyer lawyer = lawyerRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer profile not found"));
+
+        lawyer.setExperienceYears(request.getExperienceYears());
+        lawyer.setBio(request.getBio());
+        lawyer.setConsultationFee(request.getConsultationFee());
+        lawyer.setCity(request.getCity());
+        lawyer.setOfficeAddress(request.getOfficeAddress());
+        // Reuses the exact specialization resolution used at registration.
+        lawyer.setSpecializations(resolveSpecializations(request.getSpecializations()));
 
         return toProfileResponse(lawyerRepository.save(lawyer));
     }
