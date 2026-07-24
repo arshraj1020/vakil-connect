@@ -94,7 +94,7 @@ The platform is being built using modern software engineering practices — clea
 
 <div align="center">
 
-`Overall Backend: ▓▓▓▓▓▓▓▓░░ 80%`
+`Overall Backend: ▓▓▓▓▓▓▓▓▓░ 85%`
 
 </div>
 
@@ -110,6 +110,7 @@ A snapshot of what's actually working today in the backend:
 - [x] **JWT authorization filter enforcing protected routes**
 - [x] **Role-based access control (CLIENT / LAWYER / ADMIN)**
 - [x] **Lawyer module** — profile creation, public search & filtering, profile detail
+- [x] **Lawyer availability** — weekly slots, with booking validated against availability & double-booking guard
 - [x] **Appointment module** — book, cancel, history, accept, reject, complete
 - [x] **Review module** — post reviews on completed appointments, auto rating aggregation
 - [x] **Admin module** — verify lawyers, manage users, moderate reviews, platform analytics
@@ -123,7 +124,6 @@ A snapshot of what's actually working today in the backend:
 <summary><b> Not Yet Implemented — Click to expand</b></summary>
 <br/>
 
-- [ ] Lawyer availability / scheduling slots
 - [ ] Secure document upload & storage
 - [ ] Notification system (email / in-app)
 - [ ] AI service (recommendations, summarization, Q&A)
@@ -175,7 +175,7 @@ See the [Development Roadmap](#development-roadmap) for full sequencing.
 - [x] Professional profile creation with specializations
 - [x] View appointment schedule
 - [x] Accept, reject, or complete incoming appointment requests
-- [ ] Availability and scheduling configuration
+- [x] Availability and scheduling configuration (weekly slots)
 - [ ] Access uploaded client documents before consultations
 
 </details>
@@ -424,7 +424,11 @@ API documentation is generated using **Swagger / OpenAPI** (springdoc) and is in
 | `/api/lawyers` | `GET` | Public | Search & filter verified lawyers (paged) |
 | `/api/lawyers/{id}` | `GET` | Public | Lawyer profile detail |
 | `/api/lawyers/{id}/reviews` | `GET` | Public | Paged reviews for a lawyer |
+| `/api/lawyers/{id}/availability` | `GET` | Public | A lawyer's weekly availability slots |
 | `/api/lawyer/profile` | `POST` | LAWYER | Create the authenticated lawyer's profile |
+| `/api/lawyer/availability` | `POST` | LAWYER | Add a weekly availability slot |
+| `/api/lawyer/availability` | `GET` | LAWYER | List own availability slots |
+| `/api/lawyer/availability/{id}` | `DELETE` | LAWYER | Remove an availability slot |
 | `/api/lawyer/appointments` | `GET` | LAWYER | View appointment schedule |
 | `/api/lawyer/appointments/{id}/accept` | `PUT` | LAWYER | Accept a pending appointment |
 | `/api/lawyer/appointments/{id}/reject` | `PUT` | LAWYER | Reject a pending appointment |
@@ -450,7 +454,6 @@ API documentation is generated using **Swagger / OpenAPI** (springdoc) and is in
 
 | Endpoint | Method | Description |
 |:---|:---:|:---|
-| `/api/lawyer/availability` | `POST` | Configure consultation availability slots |
 | `/api/documents` | `POST` | Upload a legal document |
 | `/api/documents/{id}` | `GET` | Retrieve a stored document |
 | `/api/notifications` | `GET` | Fetch user notifications |
@@ -631,7 +634,7 @@ The project is being developed in clearly scoped phases to ensure a stable found
 <div align="center">
 
 ### Phase 2 — Core Backend Functionality
-`Progress: ▓▓▓▓▓▓▓▓▓░ 90%`
+`Progress: ▓▓▓▓▓▓▓▓▓▓ 100%`
 
 </div>
 
@@ -644,9 +647,9 @@ The project is being developed in clearly scoped phases to ensure a stable found
 - [x] Role-based access control (Client / Lawyer / Admin)
 - [x] Lawyer registration and profile management
 - [x] Lawyer search & filtering
-- [x] Appointment booking and lifecycle system
+- [x] Lawyer availability / scheduling slots
+- [x] Appointment booking and lifecycle system (availability-aware, double-booking guarded)
 - [x] Centralized exception handling & structured errors
-- [ ] Lawyer availability / scheduling slots
 
 <div align="center">
 

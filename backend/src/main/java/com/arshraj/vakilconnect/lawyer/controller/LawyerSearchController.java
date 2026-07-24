@@ -1,7 +1,9 @@
 package com.arshraj.vakilconnect.lawyer.controller;
 
+import com.arshraj.vakilconnect.lawyer.dto.AvailabilityResponse;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerProfileResponse;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerSummaryResponse;
+import com.arshraj.vakilconnect.lawyer.service.AvailabilityService;
 import com.arshraj.vakilconnect.lawyer.service.LawyerService;
 import com.arshraj.vakilconnect.review.dto.ReviewResponse;
 import com.arshraj.vakilconnect.review.service.ReviewService;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -27,10 +30,14 @@ public class LawyerSearchController {
 
     private final LawyerService lawyerService;
     private final ReviewService reviewService;
+    private final AvailabilityService availabilityService;
 
-    public LawyerSearchController(LawyerService lawyerService, ReviewService reviewService) {
+    public LawyerSearchController(LawyerService lawyerService,
+                                  ReviewService reviewService,
+                                  AvailabilityService availabilityService) {
         this.lawyerService = lawyerService;
         this.reviewService = reviewService;
+        this.availabilityService = availabilityService;
     }
 
     @GetMapping
@@ -64,5 +71,10 @@ public class LawyerSearchController {
             @RequestParam(defaultValue = "10") int size) {
 
         return reviewService.getReviewsForLawyer(lawyerId, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/{lawyerId}/availability")
+    public List<AvailabilityResponse> getAvailability(@PathVariable UUID lawyerId) {
+        return availabilityService.getAvailabilityForLawyer(lawyerId);
     }
 }

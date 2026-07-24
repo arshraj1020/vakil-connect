@@ -6,6 +6,9 @@ import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
 import com.arshraj.vakilconnect.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,4 +24,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     Optional<Appointment> findByIdAndLawyer(UUID id, Lawyer lawyer);
 
     long countByStatus(AppointmentStatus status);
+
+    boolean existsByLawyerAndAppointmentDateAndAppointmentTimeAndStatusIn(
+            Lawyer lawyer,
+            LocalDate appointmentDate,
+            LocalTime appointmentTime,
+            Collection<AppointmentStatus> statuses);
 }

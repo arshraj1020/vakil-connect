@@ -8,12 +8,15 @@ import com.arshraj.vakilconnect.appointment.repository.AppointmentRepository;
 import com.arshraj.vakilconnect.common.exception.BusinessRuleException;
 import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
+import com.arshraj.vakilconnect.lawyer.repository.AvailabilityRepository;
 import com.arshraj.vakilconnect.lawyer.repository.LawyerRepository;
 import com.arshraj.vakilconnect.user.entity.User;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -24,13 +27,16 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final UserRepository userRepository;
     private final LawyerRepository lawyerRepository;
+    private final AvailabilityRepository availabilityRepository;
 
     public AppointmentServiceImpl(AppointmentRepository appointmentRepository,
                                    UserRepository userRepository,
-                                   LawyerRepository lawyerRepository) {
+                                   LawyerRepository lawyerRepository,
+                                   AvailabilityRepository availabilityRepository) {
         this.appointmentRepository = appointmentRepository;
         this.userRepository = userRepository;
         this.lawyerRepository = lawyerRepository;
+        this.availabilityRepository = availabilityRepository;
     }
 
     @Override
@@ -43,6 +49,33 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         if (!Boolean.TRUE.equals(lawyer.getVerified())) {
             throw new BusinessRuleException("This lawyer is not yet verified and cannot accept appointments.");
+        }
+
+        // The requested time must fall within one of the lawyer's available windows.
+        DayOfWeek day = request.getAppointmentDate().getDayOfWeek();
+        LocalTime time = request.getAppointmentTime();
+
+        boolean withinAvailability = availabilityRepository
+                .findByLawyerAndDayOfWeekAndAvailableTrue(lawyer, day)
+                .stream()
+                .anyMatch(slot ->
+                        !time.isBefore(slot.getStartTime()) && time.isBefore(slot.getEndTime()));
+
+        if (!withinAvailability) {
+            throw new BusinessRuleException(
+                    "The lawyer is not available at the requested day and time.");
+        }
+
+        // Prevent double-booking the same slot.
+        boolean slotTaken = appointmentRepository
+                .existsByLawyerAndAppointmentDateAndAppointmentTimeAndStatusIn(
+                        lawyer,
+                        request.getAppointmentDate(),
+                        time,
+                        List.of(AppointmentStatus.PENDING, AppointmentStatus.ACCEPTED));
+
+        if (slotTaken) {
+            throw new BusinessRuleException("This time slot is already booked.");
         }
 
         Appointment appointment = new Appointment();
