@@ -142,6 +142,24 @@ if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
     -d "{\"lawyerId\":\"$LAWYER_ID\",\"appointmentDate\":\"$NEXT_MONDAY\",\"appointmentTime\":\"20:00:00\",\"consultationMode\":\"ONLINE\",\"notes\":\"late\"}")
   check "POST outside availability window (-> 409)" "409" "$OUTSIDE_CODE"
 
+  echo ""
+  echo "=== 6b. Concurrent double-booking (race) on a fresh slot 11:00 ==="
+  # Fire two identical bookings in parallel; the partial unique index must let
+  # exactly one win (201) and reject the other (409).
+  BODY="{\"lawyerId\":\"$LAWYER_ID\",\"appointmentDate\":\"$NEXT_MONDAY\",\"appointmentTime\":\"11:00:00\",\"consultationMode\":\"ONLINE\"}"
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST "$BASE/api/client/appointments" \
+    -H "Authorization: Bearer $CLIENT_TOKEN" -H "Content-Type: application/json" -d "$BODY" > /tmp/race_a.txt &
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST "$BASE/api/client/appointments" \
+    -H "Authorization: Bearer $CLIENT_TOKEN" -H "Content-Type: application/json" -d "$BODY" > /tmp/race_b.txt &
+  wait
+  RACE_CODES=$(cat /tmp/race_a.txt /tmp/race_b.txt | sort | tr '\n' ' ')
+  echo "  parallel results: $RACE_CODES"
+  if [ "$RACE_CODES" = "201 409 " ]; then
+    echo "  PASS  exactly one 201 and one 409"; PASS=$((PASS+1))
+  else
+    echo "  FAIL  expected '201 409', got '$RACE_CODES'"; FAIL=$((FAIL+1))
+  fi
+
   HISTORY_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/client/appointments" -H "Authorization: Bearer $CLIENT_TOKEN")
   check "GET /api/client/appointments (history)" "200" "$HISTORY_CODE"
 

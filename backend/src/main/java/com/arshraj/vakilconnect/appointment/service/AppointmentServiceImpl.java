@@ -12,6 +12,7 @@ import com.arshraj.vakilconnect.lawyer.repository.AvailabilityRepository;
 import com.arshraj.vakilconnect.lawyer.repository.LawyerRepository;
 import com.arshraj.vakilconnect.user.entity.User;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,18 +67,6 @@ public class AppointmentServiceImpl implements AppointmentService {
                     "The lawyer is not available at the requested day and time.");
         }
 
-        // Prevent double-booking the same slot.
-        boolean slotTaken = appointmentRepository
-                .existsByLawyerAndAppointmentDateAndAppointmentTimeAndStatusIn(
-                        lawyer,
-                        request.getAppointmentDate(),
-                        time,
-                        List.of(AppointmentStatus.PENDING, AppointmentStatus.ACCEPTED));
-
-        if (slotTaken) {
-            throw new BusinessRuleException("This time slot is already booked.");
-        }
-
         Appointment appointment = new Appointment();
         appointment.setClient(client);
         appointment.setLawyer(lawyer);
@@ -87,7 +76,16 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setNotes(request.getNotes());
         appointment.setStatus(AppointmentStatus.PENDING);
 
-        Appointment saved = appointmentRepository.save(appointment);
+        // The partial unique index (uq_appointments_active_slot) is the
+        // authoritative guard against double-booking. saveAndFlush forces the
+        // INSERT now so a concurrent conflict surfaces here as a
+        // DataIntegrityViolationException instead of being deferred to commit.
+        Appointment saved;
+        try {
+            saved = appointmentRepository.saveAndFlush(appointment);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessRuleException("This appointment slot has already been booked.");
+        }
 
         return toResponse(saved);
     }
