@@ -418,14 +418,14 @@ API documentation is generated using **Swagger / OpenAPI** (springdoc) and is in
 
 | Endpoint | Method | Access | Description |
 |:---|:---:|:---:|:---|
-| `/api/auth/register` | `POST` | Public | Register a new CLIENT or LAWYER (BCrypt-hashed) |
+| `/api/auth/register` | `POST` | Public | Register a CLIENT, or a LAWYER + linked profile atomically (BCrypt-hashed) |
 | `/api/auth/login` | `POST` | Public | Authenticate and receive a signed JWT |
 | `/api/users/me` | `GET` | Any auth | Current authenticated user profile |
 | `/api/lawyers` | `GET` | Public | Search & filter verified lawyers (paged) |
 | `/api/lawyers/{id}` | `GET` | Public | Lawyer profile detail |
 | `/api/lawyers/{id}/reviews` | `GET` | Public | Paged reviews for a lawyer |
 | `/api/lawyers/{id}/availability` | `GET` | Public | A lawyer's weekly availability slots |
-| `/api/lawyer/profile` | `POST` | LAWYER | Create the authenticated lawyer's profile |
+| `/api/lawyer/profile` | `POST` | LAWYER | Create lawyer profile (fallback; normally created at registration) |
 | `/api/lawyer/availability` | `POST` | LAWYER | Add a weekly availability slot |
 | `/api/lawyer/availability` | `GET` | LAWYER | List own availability slots |
 | `/api/lawyer/availability/{id}` | `DELETE` | LAWYER | Remove an availability slot |

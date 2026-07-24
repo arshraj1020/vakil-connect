@@ -1,5 +1,6 @@
 package com.arshraj.vakilconnect.auth.dto;
 
+import com.arshraj.vakilconnect.lawyer.dto.CreateLawyerProfileRequest;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -30,6 +31,14 @@ public class RegisterRequest {
             message = "Role must be either CLIENT or LAWYER"
     )
     private String role;
+
+    /**
+     * Required only when {@code role == LAWYER}. Carries the professional
+     * details needed to create the linked Lawyer profile atomically at signup.
+     * Intentionally NOT annotated with {@code @Valid} so it stays optional for
+     * clients; it is validated in the service when the role is LAWYER.
+     */
+    private CreateLawyerProfileRequest lawyerProfile;
 
     public RegisterRequest() {
     }
@@ -72,5 +81,13 @@ public class RegisterRequest {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public CreateLawyerProfileRequest getLawyerProfile() {
+        return lawyerProfile;
+    }
+
+    public void setLawyerProfile(CreateLawyerProfileRequest lawyerProfile) {
+        this.lawyerProfile = lawyerProfile;
     }
 }

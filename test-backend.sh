@@ -41,8 +41,13 @@ cat /tmp/reg_client.json; echo ""
 
 REG_LAWYER_CODE=$(curl -s -o /tmp/reg_lawyer.json -w "%{http_code}" -X POST "$BASE/api/auth/register" \
   -H "Content-Type: application/json" \
-  -d "{\"fullName\":\"Test Lawyer\",\"email\":\"$LAWYER_EMAIL\",\"password\":\"password123\",\"phoneNumber\":\"9876543211\",\"role\":\"LAWYER\"}")
-check "POST /api/auth/register (lawyer)" "201" "$REG_LAWYER_CODE"
+  -d "{\"fullName\":\"Test Lawyer\",\"email\":\"$LAWYER_EMAIL\",\"password\":\"password123\",\"phoneNumber\":\"9876543211\",\"role\":\"LAWYER\",\"lawyerProfile\":{\"barCouncilNumber\":\"BC$(date +%s)\",\"experienceYears\":5,\"bio\":\"Experienced advocate\",\"consultationFee\":1500,\"city\":\"Mumbai\",\"officeAddress\":\"123 Court Rd\",\"specializations\":[\"Family Law\"]}}")
+check "POST /api/auth/register (lawyer, atomic User+Lawyer)" "201" "$REG_LAWYER_CODE"
+
+REG_LAWYER_NOPROFILE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"fullName\":\"Bad Lawyer\",\"email\":\"bad_$LAWYER_EMAIL\",\"password\":\"password123\",\"phoneNumber\":\"9876543212\",\"role\":\"LAWYER\"}")
+check "POST /api/auth/register (lawyer, missing profile -> 400)" "400" "$REG_LAWYER_NOPROFILE"
 
 LOGIN_CODE=$(curl -s -o /tmp/login_client.json -w "%{http_code}" -X POST "$BASE/api/auth/login" \
   -H "Content-Type: application/json" \
@@ -66,13 +71,25 @@ NO_TOKEN_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/users/me")
 check "GET /api/users/me with NO token (should be 401/403, not 200)" "401" "$NO_TOKEN_CODE" || true
 
 echo ""
-echo "=== 3. Lawyer creates profile, admin verifies, public search finds it ==="
-PROFILE_CODE=$(curl -s -o /tmp/profile.json -w "%{http_code}" -X POST "$BASE/api/lawyer/profile" \
+echo "=== 3. Lawyer profile exists from registration; add availability ==="
+DUP_PROFILE_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/api/lawyer/profile" \
   -H "Authorization: Bearer $LAWYER_TOKEN" -H "Content-Type: application/json" \
-  -d '{"barCouncilNumber":"BC12345","experienceYears":5,"bio":"Experienced lawyer","consultationFee":1500,"city":"Mumbai","officeAddress":"123 Court Rd","specializations":["Family Law","Civil Law"]}')
-check "POST /api/lawyer/profile (create lawyer profile)" "201" "$PROFILE_CODE"
-cat /tmp/profile.json; echo ""
-LAWYER_ID=$(jq -r '.id' /tmp/profile.json 2>/dev/null)
+  -d '{"barCouncilNumber":"BCX99999","experienceYears":5,"bio":"dup","consultationFee":1500,"city":"Mumbai","officeAddress":"123 Court Rd","specializations":["Family Law"]}')
+check "POST /api/lawyer/profile again (already exists -> 409)" "409" "$DUP_PROFILE_CODE"
+
+AVAIL_CODE=$(curl -s -o /tmp/avail.json -w "%{http_code}" -X POST "$BASE/api/lawyer/availability" \
+  -H "Authorization: Bearer $LAWYER_TOKEN" -H "Content-Type: application/json" \
+  -d '{"dayOfWeek":"MONDAY","startTime":"10:00","endTime":"13:00"}')
+check "POST /api/lawyer/availability (add MONDAY 10-13)" "201" "$AVAIL_CODE"
+
+AVAIL_BAD_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/api/lawyer/availability" \
+  -H "Authorization: Bearer $LAWYER_TOKEN" -H "Content-Type: application/json" \
+  -d '{"dayOfWeek":"MONDAY","startTime":"14:00","endTime":"12:00"}')
+check "POST availability with start>end (-> 409)" "409" "$AVAIL_BAD_CODE"
+
+# Lawyer id needed for verification/booking: fetch own appointments won't give it,
+# so pull it from the public search after verification, or from /tmp/reg_lawyer.json if present.
+LAWYER_ID=""
 
 echo ""
 echo "=== 4. Public lawyer search (no auth needed) ==="
@@ -98,14 +115,32 @@ if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
   check "POST /api/auth/login (admin)" "200" "$ADMIN_LOGIN_CODE"
   ADMIN_TOKEN=$(jq -r '.token' /tmp/login_admin.json 2>/dev/null)
 
+  # Get the newly registered lawyer's id from the pending-verification queue.
+  curl -s -o /tmp/pending.json "$BASE/api/admin/lawyers/pending?size=50" -H "Authorization: Bearer $ADMIN_TOKEN"
+  LAWYER_ID=$(jq -r --arg n "Test Lawyer" '.content[] | select(.fullName==$n) | .id' /tmp/pending.json 2>/dev/null | head -1)
+  echo "  pending lawyer id: $LAWYER_ID"
+
   VERIFY_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "$BASE/api/admin/lawyers/$LAWYER_ID/verify" \
     -H "Authorization: Bearer $ADMIN_TOKEN")
   check "PUT /api/admin/lawyers/{id}/verify" "200" "$VERIFY_CODE"
 
+  # Next Monday (availability is MONDAY 10:00-13:00)
+  NEXT_MONDAY=$(python3 -c "import datetime as d; t=d.date.today(); print(t + d.timedelta(days=((0-t.weekday()) % 7 or 7)))")
+
   BOOK_CODE=$(curl -s -o /tmp/book.json -w "%{http_code}" -X POST "$BASE/api/client/appointments" \
     -H "Authorization: Bearer $CLIENT_TOKEN" -H "Content-Type: application/json" \
-    -d "{\"lawyerId\":\"$LAWYER_ID\",\"appointmentDate\":\"2026-08-01\",\"appointmentTime\":\"10:00:00\",\"consultationMode\":\"ONLINE\",\"notes\":\"Test booking\"}")
-  check "POST /api/client/appointments (book)" "201" "$BOOK_CODE"
+    -d "{\"lawyerId\":\"$LAWYER_ID\",\"appointmentDate\":\"$NEXT_MONDAY\",\"appointmentTime\":\"10:30:00\",\"consultationMode\":\"ONLINE\",\"notes\":\"Test booking\"}")
+  check "POST /api/client/appointments (book, inside availability)" "201" "$BOOK_CODE"
+
+  DOUBLE_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/api/client/appointments" \
+    -H "Authorization: Bearer $CLIENT_TOKEN" -H "Content-Type: application/json" \
+    -d "{\"lawyerId\":\"$LAWYER_ID\",\"appointmentDate\":\"$NEXT_MONDAY\",\"appointmentTime\":\"10:30:00\",\"consultationMode\":\"ONLINE\",\"notes\":\"dup\"}")
+  check "POST same slot again (double-booking -> 409)" "409" "$DOUBLE_CODE"
+
+  OUTSIDE_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/api/client/appointments" \
+    -H "Authorization: Bearer $CLIENT_TOKEN" -H "Content-Type: application/json" \
+    -d "{\"lawyerId\":\"$LAWYER_ID\",\"appointmentDate\":\"$NEXT_MONDAY\",\"appointmentTime\":\"20:00:00\",\"consultationMode\":\"ONLINE\",\"notes\":\"late\"}")
+  check "POST outside availability window (-> 409)" "409" "$OUTSIDE_CODE"
 
   HISTORY_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/client/appointments" -H "Authorization: Bearer $CLIENT_TOKEN")
   check "GET /api/client/appointments (history)" "200" "$HISTORY_CODE"
