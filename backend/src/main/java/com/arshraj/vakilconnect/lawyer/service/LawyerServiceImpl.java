@@ -82,7 +82,15 @@ public class LawyerServiceImpl implements LawyerService {
         return toProfileResponse(savedLawyer);
     }
 
+    /*
+     * readOnly transactions keep the persistence context open while the
+     * entities are mapped to DTOs. Lawyer.specializations is a LAZY
+     * @ManyToMany and open-in-view is disabled, so without a surrounding
+     * transaction the session closes when the repository call returns and
+     * mapping the collection throws LazyInitializationException.
+     */
     @Override
+    @Transactional(readOnly = true)
     public Page<LawyerSummaryResponse> searchLawyers(
             String keyword,
             String specialization,
@@ -108,6 +116,7 @@ public class LawyerServiceImpl implements LawyerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public LawyerProfileResponse getLawyerProfile(UUID lawyerId) {
         Lawyer lawyer = lawyerRepository.findById(lawyerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
@@ -116,6 +125,7 @@ public class LawyerServiceImpl implements LawyerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<LawyerSummaryResponse> getPendingLawyers(Pageable pageable) {
         return lawyerRepository.findByVerifiedFalse(pageable)
                 .map(this::toSummaryResponse);
