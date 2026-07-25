@@ -1,0 +1,22 @@
+# Test profile. The datasource URL/credentials are injected at runtime by
+# AbstractIntegrationTest via @DynamicPropertySource (Testcontainers), so they
+# are intentionally not declared here.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+logging:
+  level:
+    org.springframework.security: WARN
+
+# Fixed, test-only signing key (the app requires JWT_SECRET with no default).
+jwt:
+  secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz
+  expiration: 86400000
