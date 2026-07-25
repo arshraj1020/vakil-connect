@@ -532,8 +532,16 @@ Swagger documentation is available at:
 http://localhost:8080/swagger-ui/index.html
 ```
 
-> An admin account cannot be created through public registration by design. To create one, register a user and promote it directly in the database:
-> `UPDATE users SET role = 'ADMIN' WHERE email = 'you@example.com';`
+> An admin account cannot be created through public registration by design (registration accepts only CLIENT or LAWYER). Instead, a one-time **bootstrap admin** is created at startup from environment variables. Set these before running the backend:
+>
+> ```bash
+> export ADMIN_EMAIL="admin@example.com"
+> export ADMIN_PASSWORD="change-me-strong-password"
+> export ADMIN_FULL_NAME="Administrator"      # optional, defaults to "Administrator"
+> export ADMIN_PHONE_NUMBER="9876543210"       # optional
+> ```
+>
+> On startup the app creates one ADMIN user with `active = true` and email verified. It is **idempotent** — if a user with `ADMIN_EMAIL` already exists (or the vars are unset) it does nothing, so restarting never creates duplicates. Look for the log line `Bootstrap admin created: <email>` (or `Bootstrap admin already exists.`).
 
 </details>
 

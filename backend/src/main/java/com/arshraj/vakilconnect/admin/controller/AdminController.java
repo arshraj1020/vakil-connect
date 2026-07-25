@@ -31,8 +31,8 @@ public class AdminController {
     }
 
     @GetMapping("/dashboard")
-    public String dashboard() {
-        return "Welcome Admin!";
+    public AnalyticsResponse dashboard() {
+        return adminService.getAnalytics();
     }
 
     // ---- Lawyer verification (FR-16) ----

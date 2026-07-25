@@ -2,6 +2,8 @@ package com.arshraj.vakilconnect.appointment.service;
 
 import com.arshraj.vakilconnect.appointment.dto.AppointmentResponse;
 import com.arshraj.vakilconnect.appointment.dto.BookAppointmentRequest;
+import com.arshraj.vakilconnect.appointment.dto.ClientDashboardResponse;
+import com.arshraj.vakilconnect.appointment.dto.LawyerDashboardResponse;
 import com.arshraj.vakilconnect.appointment.entity.Appointment;
 import com.arshraj.vakilconnect.appointment.enums.AppointmentStatus;
 import com.arshraj.vakilconnect.appointment.repository.AppointmentRepository;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
@@ -174,6 +177,59 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setStatus(AppointmentStatus.COMPLETED);
 
         return toResponse(appointmentRepository.save(appointment));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClientDashboardResponse getCurrentClientDashboard(String clientEmail) {
+        User client = getUser(clientEmail);
+
+        List<AppointmentStatus> activeStatuses =
+                List.of(AppointmentStatus.PENDING, AppointmentStatus.ACCEPTED);
+        LocalDate today = LocalDate.now();
+
+        ClientDashboardResponse response = new ClientDashboardResponse();
+        response.setTotalAppointments(appointmentRepository.countByClient(client));
+        response.setUpcomingAppointments(
+                appointmentRepository.countByClientAndAppointmentDateGreaterThanEqualAndStatusIn(
+                        client, today, activeStatuses));
+        response.setCompletedAppointments(
+                appointmentRepository.countByClientAndStatus(client, AppointmentStatus.COMPLETED));
+        response.setCancelledAppointments(
+                appointmentRepository.countByClientAndStatus(client, AppointmentStatus.CANCELLED));
+
+        appointmentRepository
+                .findFirstByClientAndAppointmentDateGreaterThanEqualAndStatusInOrderByAppointmentDateAscAppointmentTimeAsc(
+                        client, today, activeStatuses)
+                .ifPresent(appointment -> response.setNextAppointment(toResponse(appointment)));
+
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public LawyerDashboardResponse getCurrentLawyerDashboard(String lawyerEmail) {
+        Lawyer lawyer = getLawyerByEmail(lawyerEmail);
+
+        List<AppointmentStatus> activeStatuses =
+                List.of(AppointmentStatus.PENDING, AppointmentStatus.ACCEPTED);
+
+        LawyerDashboardResponse response = new LawyerDashboardResponse();
+        response.setPendingAppointments(
+                appointmentRepository.countByLawyerAndStatus(lawyer, AppointmentStatus.PENDING));
+        response.setAcceptedAppointments(
+                appointmentRepository.countByLawyerAndStatus(lawyer, AppointmentStatus.ACCEPTED));
+        response.setCompletedAppointments(
+                appointmentRepository.countByLawyerAndStatus(lawyer, AppointmentStatus.COMPLETED));
+        response.setTodaysAppointments(
+                appointmentRepository.countByLawyerAndAppointmentDateAndStatusIn(
+                        lawyer, LocalDate.now(), activeStatuses));
+
+        response.setProfileVerified(Boolean.TRUE.equals(lawyer.getVerified()));
+        response.setAverageRating(lawyer.getRating() == null ? 0.0 : lawyer.getRating());
+        response.setTotalReviews(lawyer.getTotalReviews() == null ? 0 : lawyer.getTotalReviews());
+
+        return response;
     }
 
     private Appointment getOwnAppointment(UUID appointmentId, Lawyer lawyer) {

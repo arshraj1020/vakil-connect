@@ -1,5 +1,7 @@
 package com.arshraj.vakilconnect.lawyer.controller;
 
+import com.arshraj.vakilconnect.appointment.dto.LawyerDashboardResponse;
+import com.arshraj.vakilconnect.appointment.service.AppointmentService;
 import com.arshraj.vakilconnect.lawyer.dto.CreateLawyerProfileRequest;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerProfileResponse;
 import com.arshraj.vakilconnect.lawyer.dto.UpdateLawyerProfileRequest;
@@ -18,14 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class LawyerController {
 
     private final LawyerService lawyerService;
+    private final AppointmentService appointmentService;
 
-    public LawyerController(LawyerService lawyerService) {
+    public LawyerController(LawyerService lawyerService, AppointmentService appointmentService) {
         this.lawyerService = lawyerService;
+        this.appointmentService = appointmentService;
     }
 
     @GetMapping("/api/lawyer/dashboard")
-    public String dashboard() {
-        return "Welcome Lawyer!";
+    public LawyerDashboardResponse dashboard(Authentication authentication) {
+        return appointmentService.getCurrentLawyerDashboard(authentication.getName());
     }
 
     @PostMapping("/api/lawyer/profile")
