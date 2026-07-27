@@ -23,9 +23,17 @@ public class ClientController {
         this.appointmentService = appointmentService;
     }
 
+    /**
+     * The authenticated client's profile.
+     *
+     * Returns the same payload as GET /api/users/me, which is role-agnostic.
+     * This route is kept because it is CLIENT-scoped by the security rules and
+     * pairs with PUT /api/client/profile, so a client-side application can use
+     * a single consistent path for reading and updating its own profile.
+     */
     @GetMapping("/api/client/profile")
-    public String profile() {
-        return "Welcome Client!";
+    public CurrentUserResponse profile(Authentication authentication) {
+        return userService.getCurrentUser(authentication.getName());
     }
 
     @PutMapping("/api/client/profile")

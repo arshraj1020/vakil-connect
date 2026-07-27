@@ -53,7 +53,9 @@
 <summary><b>Click to expand / collapse</b></summary>
 
 - [Overview](#overview)
+- [Scope](#scope)
 - [Current Progress](#current-progress)
+- [Testing](#testing)
 - [Key Features](#key-features)
 - [Architecture Overview](#architecture-overview)
 - [Request Flow](#request-flow)
@@ -84,9 +86,25 @@ The platform is being built using modern software engineering practices — clea
 
 <div align="center">
 
-> **Project status:** VakilConnect is a **private, personal project** under active development. The **core backend is functionally complete** — JWT authentication and role-based authorization, the lawyer, appointment, review, and admin modules, centralized exception handling, and OpenAPI docs are all implemented. The frontend, AI service, document storage, and infrastructure layers are planned in subsequent phases. This repository is **not intended for public use, deployment, or distribution.**
+> **Project status:** VakilConnect is a **private, personal project** under active development. **Backend v1.0.0 is complete and frozen** — JWT authentication and role-based authorization, the lawyer, appointment, availability, review, and admin modules, centralized exception handling, Flyway-managed schema and an integration test suite are all in place. Frontend development is the current focus. This repository is **not intended for public use, deployment, or distribution.**
 
 </div>
+
+---
+
+## Scope
+
+Version 1.0 intentionally focuses on the **core legal booking platform**: authentication and role-based access, lawyer discovery, availability management, the appointment lifecycle, reviews, and administration. That scope is complete, tested end-to-end, and frozen.
+
+The following are **deliberately deferred to Version 2** — they are planned roadmap items, not gaps in v1.0:
+
+| Deferred to v2 | Rationale |
+|:---|:---|
+| **Document Management** | Requires object storage (S3) and an access-control model that is out of scope for the booking core. |
+| **Notifications** | Email/in-app delivery is a cross-cutting concern best added once the frontend defines the user journeys that trigger it. |
+| **AI Legal Assistant** | A separate FastAPI service; independent deployment lifecycle from the Spring Boot API. |
+
+Freezing v1.0 keeps the platform shippable and demonstrable rather than perpetually in progress. Each deferred item is a self-contained addition that can be built without reworking the v1.0 core.
 
 ---
 
@@ -479,6 +497,39 @@ API documentation is generated using **Swagger / OpenAPI** (springdoc) and is in
 - [ ] Lawyer profile and availability view
 - [ ] Appointment booking flow
 - [ ] Admin analytics panel
+
+---
+
+## Testing
+
+The backend is covered by an integration test suite that runs against a **real PostgreSQL database** in Docker via [Testcontainers](https://testcontainers.com/) — not an in-memory substitute. Every test executes the actual Flyway migrations with Hibernate in `ddl-auto: validate` mode, so the tests exercise the production schema exactly as deployed.
+
+```bash
+cd backend
+./mvnw clean test      # requires Docker to be running
+```
+
+<div align="center">
+
+| Suite | Tests | Covers |
+|:---|:---:|:---|
+| `AuthControllerIT` | 12 | Registration & login, atomic lawyer signup, duplicate/validation failures |
+| `SecurityAuthorizationIT` | 7 | Anonymous / CLIENT / LAWYER / ADMIN role matrix |
+| `AppointmentRepositoryIT` | 15 | Scoped queries, ownership, dashboard counts, partial unique index |
+| `AppointmentLifecycleIT` | 42 | Booking rules, availability boundaries, state machine, ownership, security |
+| `VakilconnectApplicationTests` | 1 | Context + schema validation |
+| **Total** | **77** | |
+
+</div>
+
+**Defects found and fixed by these tests**, each caught before reaching a user:
+
+- A PostgreSQL `lower(bytea)` failure on the public lawyer search, caused by untyped null JDBC parameters
+- A `LazyInitializationException` that made `GET /api/lawyers` return 500 for every non-empty result set
+- A missing lawyer profile-creation endpoint (service implemented but never wired to a controller)
+- Malformed UUID path variables returning 500 instead of 400 across every `{id}` route
+
+Tests are deterministic by construction: no sleeps, no randomness, no fixed dates (all dates are computed relative to the run), and unique identifiers per test so no cleanup or ordering dependency is required.
 
 ---
 
