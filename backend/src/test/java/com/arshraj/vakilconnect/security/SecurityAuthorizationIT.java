@@ -2,13 +2,11 @@ package com.arshraj.vakilconnect.security;
 
 import com.arshraj.vakilconnect.support.AbstractIntegrationTest;
 import com.arshraj.vakilconnect.user.entity.User;
-import com.arshraj.vakilconnect.user.enums.Role;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,23 +26,7 @@ class SecurityAuthorizationIT extends AbstractIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    /** ADMIN cannot be created through the API by design, so insert one directly. */
-    private String registerAndLoginAdmin(String email) throws Exception {
-        User admin = new User();
-        admin.setFullName("Test Admin");
-        admin.setEmail(email);
-        admin.setPasswordHash(passwordEncoder.encode(DEFAULT_PASSWORD));
-        admin.setPhoneNumber("9876543212");
-        admin.setRole(Role.ADMIN);
-        admin.setActive(true);
-        admin.setEnabled(true);
-        userRepository.save(admin);
-
-        return login(email, DEFAULT_PASSWORD);
-    }
+    // registerAndLoginAdmin(...) lives in AbstractIntegrationTest.
 
     // ------------------------------------------------------------- anonymous
 

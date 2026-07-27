@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -773,5 +774,172 @@ class AppointmentLifecycleIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.path").value("/api/client/appointments"));
 
         assertNothingPersisted(fixture.clientEmail());
+    }
+
+    // ================================================================
+    // Security: authentication and role enforcement
+    //
+    // Security runs in the filter chain, before the handler, so these
+    // cases need no seeded appointment - a random UUID never reaches
+    // the service.
+    // ================================================================
+
+    private static final UUID ANY_ID = UUID.randomUUID();
+
+    private void expectUnauthorized(ResultActions actions, String path) throws Exception {
+        actions.andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.error").value("Unauthorized"))
+                .andExpect(jsonPath("$.message").value("Authentication required"))
+                .andExpect(jsonPath("$.path").value(path));
+    }
+
+    private void expectForbidden(ResultActions actions, String path) throws Exception {
+        actions.andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Forbidden"))
+                .andExpect(jsonPath("$.message").value("Access denied"))
+                .andExpect(jsonPath("$.path").value(path));
+    }
+
+    // ---------------------------------------------------- anonymous -> 401
+
+    @Test
+    @DisplayName("anonymous cannot book an appointment")
+    void anonymousCannotBookAppointmentReturns401() throws Exception {
+        expectUnauthorized(
+                mockMvc.perform(post("/api/client/appointments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(bookingRequest(ANY_ID, LocalDate.now().plusDays(7), "10:30:00")))),
+                "/api/client/appointments");
+    }
+
+    @Test
+    @DisplayName("anonymous cannot list client appointments")
+    void anonymousCannotListClientAppointmentsReturns401() throws Exception {
+        expectUnauthorized(
+                mockMvc.perform(get("/api/client/appointments")),
+                "/api/client/appointments");
+    }
+
+    @Test
+    @DisplayName("anonymous cannot cancel an appointment")
+    void anonymousCannotCancelAppointmentReturns401() throws Exception {
+        expectUnauthorized(
+                mockMvc.perform(put("/api/client/appointments/{id}/cancel", ANY_ID)),
+                "/api/client/appointments/" + ANY_ID + "/cancel");
+    }
+
+    @Test
+    @DisplayName("anonymous cannot list lawyer appointments")
+    void anonymousCannotListLawyerAppointmentsReturns401() throws Exception {
+        expectUnauthorized(
+                mockMvc.perform(get("/api/lawyer/appointments")),
+                "/api/lawyer/appointments");
+    }
+
+    @Test
+    @DisplayName("anonymous cannot accept an appointment")
+    void anonymousCannotAcceptAppointmentReturns401() throws Exception {
+        expectUnauthorized(
+                mockMvc.perform(put("/api/lawyer/appointments/{id}/accept", ANY_ID)),
+                "/api/lawyer/appointments/" + ANY_ID + "/accept");
+    }
+
+    // -------------------------------------------------- wrong role -> 403
+
+    @Test
+    @DisplayName("a LAWYER cannot book an appointment")
+    void lawyerCannotBookAppointmentReturns403() throws Exception {
+        String lawyerToken = registerAndLoginLawyer(uniqueEmail("lawyer"));
+
+        expectForbidden(
+                mockMvc.perform(post("/api/client/appointments")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(lawyerToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(bookingRequest(ANY_ID, LocalDate.now().plusDays(7), "10:30:00")))),
+                "/api/client/appointments");
+    }
+
+    @Test
+    @DisplayName("a LAWYER cannot list client appointments")
+    void lawyerCannotListClientAppointmentsReturns403() throws Exception {
+        String lawyerToken = registerAndLoginLawyer(uniqueEmail("lawyer"));
+
+        expectForbidden(
+                mockMvc.perform(get("/api/client/appointments")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(lawyerToken))),
+                "/api/client/appointments");
+    }
+
+    @Test
+    @DisplayName("a LAWYER cannot cancel an appointment")
+    void lawyerCannotCancelAppointmentReturns403() throws Exception {
+        String lawyerToken = registerAndLoginLawyer(uniqueEmail("lawyer"));
+
+        expectForbidden(
+                mockMvc.perform(put("/api/client/appointments/{id}/cancel", ANY_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(lawyerToken))),
+                "/api/client/appointments/" + ANY_ID + "/cancel");
+    }
+
+    @Test
+    @DisplayName("a CLIENT cannot list lawyer appointments")
+    void clientCannotListLawyerAppointmentsReturns403() throws Exception {
+        String clientToken = registerAndLoginClient(uniqueEmail("client"));
+
+        expectForbidden(
+                mockMvc.perform(get("/api/lawyer/appointments")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(clientToken))),
+                "/api/lawyer/appointments");
+    }
+
+    @Test
+    @DisplayName("a CLIENT cannot accept an appointment")
+    void clientCannotAcceptAppointmentReturns403() throws Exception {
+        String clientToken = registerAndLoginClient(uniqueEmail("client"));
+
+        expectForbidden(
+                mockMvc.perform(put("/api/lawyer/appointments/{id}/accept", ANY_ID)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(clientToken))),
+                "/api/lawyer/appointments/" + ANY_ID + "/accept");
+    }
+
+    // ------------------------------------------------------- admin -> 403
+
+    @Test
+    @DisplayName("an ADMIN cannot access client appointment endpoints")
+    void adminCannotAccessClientAppointmentsReturns403() throws Exception {
+        String adminToken = registerAndLoginAdmin(uniqueEmail("admin"));
+
+        expectForbidden(
+                mockMvc.perform(get("/api/client/appointments")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(adminToken))),
+                "/api/client/appointments");
+    }
+
+    @Test
+    @DisplayName("an ADMIN cannot access lawyer appointment endpoints")
+    void adminCannotAccessLawyerAppointmentsReturns403() throws Exception {
+        String adminToken = registerAndLoginAdmin(uniqueEmail("admin"));
+
+        expectForbidden(
+                mockMvc.perform(get("/api/lawyer/appointments")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(adminToken))),
+                "/api/lawyer/appointments");
+    }
+
+    // -------------------------------------------------------- edge case
+
+    @Test
+    @DisplayName("a malformed UUID in the path is a client error, not a server error")
+    void malformedUuidOnCancelReturns400() throws Exception {
+        String clientToken = registerAndLoginClient(uniqueEmail("client"));
+
+        mockMvc.perform(put("/api/client/appointments/{id}/cancel", "not-a-uuid")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(clientToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"));
     }
 }

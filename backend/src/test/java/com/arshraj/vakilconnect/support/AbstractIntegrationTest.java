@@ -1,9 +1,13 @@
 package com.arshraj.vakilconnect.support;
 
+import com.arshraj.vakilconnect.user.entity.User;
+import com.arshraj.vakilconnect.user.enums.Role;
+import com.arshraj.vakilconnect.user.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -57,6 +61,12 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected ObjectMapper objectMapper;
+
+    @Autowired
+    protected UserRepository userRepositoryForSupport;
+
+    @Autowired
+    protected PasswordEncoder passwordEncoderForSupport;
 
     private String uniqueSuffix;
 
@@ -134,6 +144,24 @@ public abstract class AbstractIntegrationTest {
     /** Registers a LAWYER (with profile) and returns their JWT. */
     protected String registerAndLoginLawyer(String email) throws Exception {
         register(lawyerRegistration(email));
+        return login(email, DEFAULT_PASSWORD);
+    }
+
+    /**
+     * ADMIN cannot be created through the public API by design, so the row is
+     * inserted directly and then authenticated normally.
+     */
+    protected String registerAndLoginAdmin(String email) throws Exception {
+        User admin = new User();
+        admin.setFullName("Test Admin");
+        admin.setEmail(email);
+        admin.setPasswordHash(passwordEncoderForSupport.encode(DEFAULT_PASSWORD));
+        admin.setPhoneNumber("9876543212");
+        admin.setRole(Role.ADMIN);
+        admin.setActive(true);
+        admin.setEnabled(true);
+        userRepositoryForSupport.save(admin);
+
         return login(email, DEFAULT_PASSWORD);
     }
 

@@ -9,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import java.util.HashMap;
@@ -62,6 +63,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnreadable(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, "Malformed or unreadable request body", request);
+    }
+
+    /**
+     * A path variable or request parameter that cannot be converted to the
+     * declared type (e.g. a non-UUID appointment id) is a client error.
+     *
+     * This handler is required because MethodArgumentTypeMismatchException is a
+     * RuntimeException: without it the generic fallback below would catch it and
+     * return 500. The parameter name is reported but its raw value is not echoed
+     * back to the caller.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST,
+                "Invalid value for parameter '" + ex.getName() + "'", request);
     }
 
     @ExceptionHandler(AuthenticationException.class)
