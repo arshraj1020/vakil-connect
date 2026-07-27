@@ -14,10 +14,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.LinkedHashMap;
@@ -27,6 +29,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -116,6 +119,34 @@ class AppointmentLifecycleIT extends AbstractIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, bearer(clientToken))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(body)));
+    }
+
+    /** Books a PENDING appointment and returns its id. */
+    private UUID bookPending(Fixture fixture, String time) throws Exception {
+        MvcResult result = book(fixture.clientToken(),
+                bookingRequest(fixture.lawyerId(), fixture.nextMonday(), time))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return UUID.fromString(objectMapper
+                .readTree(result.getResponse().getContentAsString())
+                .get("id").asText());
+    }
+
+    private ResultActions cancel(String clientToken, UUID appointmentId) throws Exception {
+        return mockMvc.perform(put("/api/client/appointments/{id}/cancel", appointmentId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(clientToken)));
+    }
+
+    /** action is one of: accept, reject, complete. */
+    private ResultActions lawyerAction(String lawyerToken, UUID appointmentId, String action)
+            throws Exception {
+        return mockMvc.perform(put("/api/lawyer/appointments/{id}/{action}", appointmentId, action)
+                .header(HttpHeaders.AUTHORIZATION, bearer(lawyerToken)));
+    }
+
+    private Appointment reload(UUID appointmentId) {
+        return appointmentRepository.findById(appointmentId).orElseThrow();
     }
 
     @Test
@@ -286,5 +317,215 @@ class AppointmentLifecycleIT extends AbstractIntegrationTest {
     private void assertNothingPersisted(String clientEmail) {
         User client = userRepository.findByEmail(clientEmail).orElseThrow();
         assertThat(appointmentRepository.countByClient(client)).isZero();
+    }
+
+    /**
+     * Asserts a rejected transition wrote nothing. Comparing updatedAt as well
+     * as status proves no @PreUpdate fired, i.e. no write was even attempted —
+     * status alone would still pass if a row had been written back unchanged.
+     */
+    private void assertUnchanged(UUID appointmentId,
+                                 AppointmentStatus expectedStatus,
+                                 LocalDateTime expectedUpdatedAt) {
+        Appointment after = reload(appointmentId);
+        assertThat(after.getStatus()).isEqualTo(expectedStatus);
+        assertThat(after.getUpdatedAt()).isEqualTo(expectedUpdatedAt);
+    }
+
+    // ------------------------------------------------- client cancellation
+
+    @Test
+    @DisplayName("a client cancels their own PENDING appointment")
+    void clientCancelsPendingAppointmentReturns200() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "10:30:00");
+
+        cancel(fixture.clientToken(), appointmentId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.lawyerId").value(fixture.lawyerId().toString()));
+
+        assertThat(reload(appointmentId).getStatus()).isEqualTo(AppointmentStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("a client cancels their own ACCEPTED appointment")
+    void clientCancelsAcceptedAppointmentReturns200() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "11:00:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"));
+
+        cancel(fixture.clientToken(), appointmentId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        assertThat(reload(appointmentId).getStatus()).isEqualTo(AppointmentStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("a COMPLETED appointment can no longer be cancelled")
+    void clientCannotCancelCompletedAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "11:30:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept").andExpect(status().isOk());
+        lawyerAction(fixture.lawyerToken(), appointmentId, "complete")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        // Snapshot before the rejected call so we can prove nothing was written.
+        Appointment before = reload(appointmentId);
+        LocalDateTime updatedAtBefore = before.getUpdatedAt();
+
+        cancel(fixture.clientToken(), appointmentId)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value("This appointment can no longer be cancelled."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/client/appointments/" + appointmentId + "/cancel"));
+
+        Appointment after = reload(appointmentId);
+        assertThat(after.getStatus()).isEqualTo(AppointmentStatus.COMPLETED);
+        assertThat(after.getUpdatedAt()).isEqualTo(updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("a client cannot cancel another client's appointment")
+    void clientCannotCancelAnotherClientsAppointmentReturns404() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "12:00:00");
+
+        String otherClientToken = registerAndLoginClient(uniqueEmail("otherclient"));
+
+        Appointment before = reload(appointmentId);
+        LocalDateTime updatedAtBefore = before.getUpdatedAt();
+
+        // Ownership is enforced by querying with the owner as a predicate, so a
+        // non-owner gets 404 rather than 403 (does not disclose existence).
+        cancel(otherClientToken, appointmentId)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Appointment not found"))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/client/appointments/" + appointmentId + "/cancel"));
+
+        Appointment after = reload(appointmentId);
+        assertThat(after.getStatus()).isEqualTo(AppointmentStatus.PENDING);
+        assertThat(after.getUpdatedAt()).isEqualTo(updatedAtBefore);
+    }
+
+    // ------------------------------------------- lawyer lifecycle transitions
+
+    @Test
+    @DisplayName("a lawyer accepts a PENDING appointment")
+    void lawyerAcceptsPendingAppointmentReturns200() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "10:00:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.lawyerId").value(fixture.lawyerId().toString()));
+
+        assertThat(reload(appointmentId).getStatus()).isEqualTo(AppointmentStatus.ACCEPTED);
+    }
+
+    @Test
+    @DisplayName("a lawyer rejects a PENDING appointment")
+    void lawyerRejectsPendingAppointmentReturns200() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "10:30:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "reject")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+
+        assertThat(reload(appointmentId).getStatus()).isEqualTo(AppointmentStatus.REJECTED);
+    }
+
+    @Test
+    @DisplayName("a lawyer completes an ACCEPTED appointment")
+    void lawyerCompletesAcceptedAppointmentReturns200() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "11:00:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept").andExpect(status().isOk());
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "complete")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(appointmentId.toString()))
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        assertThat(reload(appointmentId).getStatus()).isEqualTo(AppointmentStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("an already ACCEPTED appointment cannot be accepted again")
+    void lawyerCannotAcceptAcceptedAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "11:30:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept").andExpect(status().isOk());
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message").value("Only pending appointments can be accepted."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/accept"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.ACCEPTED, updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("an ACCEPTED appointment cannot be rejected")
+    void lawyerCannotRejectAcceptedAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "12:00:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept").andExpect(status().isOk());
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "reject")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message").value("Only pending appointments can be rejected."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/reject"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.ACCEPTED, updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("a PENDING appointment cannot be completed before it is accepted")
+    void lawyerCannotCompletePendingAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "12:30:00");
+
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "complete")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value("Only accepted appointments can be marked as completed."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/complete"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.PENDING, updatedAtBefore);
     }
 }
