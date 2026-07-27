@@ -319,6 +319,17 @@ class AppointmentLifecycleIT extends AbstractIntegrationTest {
         assertThat(appointmentRepository.countByClient(client)).isZero();
     }
 
+    /** Asserts exactly one appointment was persisted for the client, at the given time. */
+    private void assertSinglePersistedAt(String clientEmail, LocalTime expectedTime) {
+        User client = userRepository.findByEmail(clientEmail).orElseThrow();
+        List<Appointment> persisted = appointmentRepository
+                .findByClientOrderByAppointmentDateDescAppointmentTimeDesc(client);
+
+        assertThat(persisted).hasSize(1);
+        assertThat(persisted.get(0).getAppointmentTime()).isEqualTo(expectedTime);
+        assertThat(persisted.get(0).getStatus()).isEqualTo(AppointmentStatus.PENDING);
+    }
+
     /**
      * Asserts a rejected transition wrote nothing. Comparing updatedAt as well
      * as status proves no @PreUpdate fired, i.e. no write was even attempted —
@@ -527,5 +538,240 @@ class AppointmentLifecycleIT extends AbstractIntegrationTest {
                         .value("/api/lawyer/appointments/" + appointmentId + "/complete"));
 
         assertUnchanged(appointmentId, AppointmentStatus.PENDING, updatedAtBefore);
+    }
+
+    // ------------------------------------------------ lawyer ownership checks
+
+    @Test
+    @DisplayName("a lawyer cannot accept another lawyer's appointment")
+    void lawyerCannotAcceptAnotherLawyersAppointmentReturns404() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "10:00:00");
+
+        String otherLawyerToken = registerAndLoginLawyer(uniqueEmail("otherlawyer"));
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(otherLawyerToken, appointmentId, "accept")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Appointment not found"))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/accept"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.PENDING, updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("a lawyer cannot reject another lawyer's appointment")
+    void lawyerCannotRejectAnotherLawyersAppointmentReturns404() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "10:30:00");
+
+        String otherLawyerToken = registerAndLoginLawyer(uniqueEmail("otherlawyer"));
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(otherLawyerToken, appointmentId, "reject")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Appointment not found"))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/reject"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.PENDING, updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("a lawyer cannot complete another lawyer's appointment")
+    void lawyerCannotCompleteAnotherLawyersAppointmentReturns404() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "11:00:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept").andExpect(status().isOk());
+
+        String otherLawyerToken = registerAndLoginLawyer(uniqueEmail("otherlawyer"));
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(otherLawyerToken, appointmentId, "complete")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Appointment not found"))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/complete"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.ACCEPTED, updatedAtBefore);
+    }
+
+    // --------------------------------------------- transitions from terminal
+
+    @Test
+    @DisplayName("a CANCELLED appointment cannot be cancelled again")
+    void clientCannotCancelCancelledAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "11:30:00");
+
+        cancel(fixture.clientToken(), appointmentId).andExpect(status().isOk());
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        cancel(fixture.clientToken(), appointmentId)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value("This appointment can no longer be cancelled."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/client/appointments/" + appointmentId + "/cancel"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.CANCELLED, updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("a REJECTED appointment cannot be accepted")
+    void lawyerCannotAcceptRejectedAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "12:00:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "reject").andExpect(status().isOk());
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message").value("Only pending appointments can be accepted."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/accept"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.REJECTED, updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("a CANCELLED appointment cannot be accepted")
+    void lawyerCannotAcceptCancelledAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "12:30:00");
+
+        cancel(fixture.clientToken(), appointmentId).andExpect(status().isOk());
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "accept")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message").value("Only pending appointments can be accepted."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/accept"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.CANCELLED, updatedAtBefore);
+    }
+
+    @Test
+    @DisplayName("a REJECTED appointment cannot be completed")
+    void lawyerCannotCompleteRejectedAppointmentReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        UUID appointmentId = bookPending(fixture, "12:45:00");
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "reject").andExpect(status().isOk());
+        LocalDateTime updatedAtBefore = reload(appointmentId).getUpdatedAt();
+
+        lawyerAction(fixture.lawyerToken(), appointmentId, "complete")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value("Only accepted appointments can be marked as completed."))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/lawyer/appointments/" + appointmentId + "/complete"));
+
+        assertUnchanged(appointmentId, AppointmentStatus.REJECTED, updatedAtBefore);
+    }
+
+    // ---------------------------------------------------- availability window
+    //
+    // The seeded window is MONDAY 10:00-13:00 and the service matches with
+    //     time >= startTime && time < endTime
+    // so the opening time is INCLUSIVE and the closing time is EXCLUSIVE.
+
+    @Test
+    @DisplayName("booking exactly at the opening time succeeds (start is inclusive)")
+    void bookingAtOpeningTimeSucceeds() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+
+        book(fixture.clientToken(),
+                bookingRequest(fixture.lawyerId(), fixture.nextMonday(), SLOT_START.toString()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.appointmentDate").value(fixture.nextMonday().toString()));
+
+        assertSinglePersistedAt(fixture.clientEmail(), SLOT_START);
+    }
+
+    @Test
+    @DisplayName("booking one minute before opening is rejected")
+    void bookingOneMinuteBeforeOpeningReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+
+        book(fixture.clientToken(), bookingRequest(fixture.lawyerId(), fixture.nextMonday(),
+                SLOT_START.minusMinutes(1).toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value("The lawyer is not available at the requested day and time."))
+                .andExpect(jsonPath("$.path").value("/api/client/appointments"));
+
+        assertNothingPersisted(fixture.clientEmail());
+    }
+
+    @Test
+    @DisplayName("booking one minute before closing succeeds")
+    void bookingOneMinuteBeforeClosingSucceeds() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+        LocalTime lastBookableMinute = SLOT_END.minusMinutes(1);
+
+        book(fixture.clientToken(),
+                bookingRequest(fixture.lawyerId(), fixture.nextMonday(), lastBookableMinute.toString()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+
+        assertSinglePersistedAt(fixture.clientEmail(), lastBookableMinute);
+    }
+
+    @Test
+    @DisplayName("booking exactly at the closing time is rejected (end is exclusive)")
+    void bookingAtClosingTimeReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+
+        book(fixture.clientToken(),
+                bookingRequest(fixture.lawyerId(), fixture.nextMonday(), SLOT_END.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value("The lawyer is not available at the requested day and time."))
+                .andExpect(jsonPath("$.path").value("/api/client/appointments"));
+
+        assertNothingPersisted(fixture.clientEmail());
+    }
+
+    @Test
+    @DisplayName("booking one minute after closing is rejected")
+    void bookingOneMinuteAfterClosingReturns409() throws Exception {
+        Fixture fixture = seedBookableLawyer();
+
+        book(fixture.clientToken(), bookingRequest(fixture.lawyerId(), fixture.nextMonday(),
+                SLOT_END.plusMinutes(1).toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value("The lawyer is not available at the requested day and time."))
+                .andExpect(jsonPath("$.path").value("/api/client/appointments"));
+
+        assertNothingPersisted(fixture.clientEmail());
     }
 }

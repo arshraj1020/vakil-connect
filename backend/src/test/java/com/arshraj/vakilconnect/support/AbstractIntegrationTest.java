@@ -73,8 +73,13 @@ public abstract class AbstractIntegrationTest {
         return prefix + "_" + uniqueSuffix + "@test.com";
     }
 
+    /**
+     * Unique per call, not merely per test: bar_council_number is UNIQUE, so a
+     * test that registers two lawyers would otherwise fail its second
+     * registration with a 409.
+     */
     protected String uniqueBarCouncilNumber() {
-        return "BC_" + uniqueSuffix;
+        return "BC_" + uniqueSuffix + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     protected String json(Map<String, Object> body) throws Exception {
