@@ -59,7 +59,7 @@ export function UserActions({
           description:
             performed === "activate"
               ? "Their account is active."
-              : "They will be blocked at their next sign-in.",
+              : "Their access has been revoked immediately.",
         },
       );
     },
@@ -111,7 +111,7 @@ export function UserActions({
         }
         description={
           user.active
-            ? "This will block the account from signing in. Any session already open stays valid until its token expires."
+            ? "This will block the account immediately, including any session that is currently open."
             : "This will restore the account's ability to sign in."
         }
         confirmLabel={user.active ? "Deactivate" : "Activate"}

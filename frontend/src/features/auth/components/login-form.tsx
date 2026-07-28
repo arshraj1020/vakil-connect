@@ -29,7 +29,7 @@ import {
   SESSION_EXPIRED_PARAM,
   SESSION_EXPIRED_VALUE,
 } from "@/lib/constants";
-import { ROUTES, dashboardFor } from "@/lib/routes";
+import { ROUTES, safeRedirect } from "@/lib/routes";
 import { isApiError } from "@/types";
 
 /**
@@ -59,7 +59,7 @@ export function LoginForm() {
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "", rememberMe: false },
+    defaultValues: { email: "", password: "" },
   });
 
   const mutation = useMutation({
@@ -68,9 +68,15 @@ export function LoginForm() {
 
     onSuccess: (user) => {
       toast.success(`Welcome back, ${user.fullName.split(" ")[0] ?? ""}`.trim());
-      // Honour the destination middleware captured before redirecting here.
-      const next = searchParams.get(REDIRECT_PARAM);
-      router.replace(next ?? dashboardFor(user.role));
+
+      /*
+       * `next` is validated against the role that just signed in, never trusted
+       * as given. It is attacker-controllable, and it is routinely STALE: it is
+       * captured when a session ends, so signing out of a lawyer account and
+       * back in as a client used to land on /lawyer/dashboard and render
+       * "Access denied". safeRedirect falls back to this user's own dashboard.
+       */
+      router.replace(safeRedirect(searchParams.get(REDIRECT_PARAM), user.role));
     },
 
     onError: (error: unknown) => {
@@ -147,16 +153,14 @@ export function LoginForm() {
             )}
           </FormField>
 
-          <div className="flex items-center justify-between gap-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                {...register("rememberMe")}
-                className="size-4 rounded border-input accent-primary"
-              />
-              Remember me
-            </label>
-
+          {/*
+            "Remember me" was removed rather than wired up. The backend issues a
+            fixed 24h token and has no refresh endpoint, so the cookie's lifetime
+            cannot extend a session beyond the token's own expiry - the checkbox
+            could not have done anything except mislead. Restoring it needs a
+            backend change (longer expiry, or refresh tokens), not a UI change.
+          */}
+          <div className="flex items-center justify-end gap-3">
             {/*
               Placeholder: the backend has no password-reset endpoint in v1, so
               this intentionally leads nowhere rather than to a broken flow.

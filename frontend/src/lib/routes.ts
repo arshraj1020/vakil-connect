@@ -73,3 +73,48 @@ export function roleForPath(pathname: string): Role | null {
   );
   return entry ? entry[0] : null;
 }
+
+/**
+ * Resolves where to send a user after they sign in.
+ *
+ * The `next` parameter is attacker-controllable - it comes straight from the
+ * query string - and it may also be legitimately STALE, captured before a
+ * different account signed in. Both cases are handled here so that every
+ * redirect site shares one rule.
+ *
+ * Rejects, falling back to the user's own dashboard:
+ *
+ *  - anything that is not a string (absent parameter)
+ *  - anything not beginning with "/" - an absolute URL such as
+ *    "https://evil.com" would otherwise navigate off-site immediately after a
+ *    successful sign-in, which is a credible phishing vector
+ *  - "//host" and "/\host", which browsers resolve as protocol-relative URLs
+ *    and are therefore external despite the leading slash
+ *  - a path owned by a DIFFERENT role, which is what previously stranded a
+ *    CLIENT on /lawyer/dashboard looking at an "Access denied" page after
+ *    signing out of a lawyer account and back in as a client
+ *
+ * Accepts a path owned by no role (e.g. "/lawyers"), because public
+ * destinations are valid for everyone.
+ *
+ * Note the deliberate consequence: signing out and back in as the SAME role
+ * still returns the user to where they were, which is the behaviour the `next`
+ * parameter exists to provide.
+ */
+export function safeRedirect(next: string | null | undefined, role: Role): string {
+  const fallback = dashboardFor(role);
+
+  if (typeof next !== "string" || next.length === 0) return fallback;
+
+  // Must be site-relative, and must not be protocol-relative.
+  if (!next.startsWith("/")) return fallback;
+  if (next.startsWith("//") || next.startsWith("/\\")) return fallback;
+
+  // Compare on the path alone; `next` may carry a query string or fragment.
+  const pathname = next.split(/[?#]/)[0] ?? "";
+
+  const owner = roleForPath(pathname);
+  if (owner !== null && owner !== role) return fallback;
+
+  return next;
+}

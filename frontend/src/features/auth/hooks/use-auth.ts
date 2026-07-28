@@ -1,9 +1,11 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
 import { clearStoredToken, setStoredToken } from "@/lib/auth-storage";
+import { ROUTES } from "@/lib/routes";
 import { authService } from "@/services/auth-service";
 import { userService } from "@/services/user-service";
 import {
@@ -28,6 +30,7 @@ import { isApiError, type LoginRequest, type RegisterRequest, type RegisterRespo
  */
 export function useAuth() {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const user = useAuthStore(selectUser);
   const status = useAuthStore(selectStatus);
@@ -109,12 +112,23 @@ export function useAuth() {
    * Clearing the cache is not optional: without it the next account to sign in
    * on this browser would briefly render the previous user's cached
    * appointments and dashboard figures.
+   *
+   * The explicit navigation matters. Without it, signing out left the user on
+   * the page they were already on; the protected layout then noticed the lost
+   * session and redirected with `?next=<that protected path>`, which is how a
+   * stale cross-role destination was manufactured on every sign-out. Navigating
+   * here means the common case never captures a `next` at all - and
+   * `safeRedirect` independently rejects one if some other path still does.
+   *
+   * Order is deliberate: clear the token first so no in-flight request can
+   * reuse it, then drop the session, then the cache, then navigate.
    */
   const logout = useCallback(() => {
     clearStoredToken();
     reset();
     queryClient.clear();
-  }, [queryClient, reset]);
+    router.replace(ROUTES.LOGIN);
+  }, [queryClient, reset, router]);
 
   /** Convenience for role-conditional UI; guards use this too. */
   const hasRole = useCallback(

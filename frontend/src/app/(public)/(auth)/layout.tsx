@@ -7,7 +7,7 @@ import { FullPageLoader } from "@/components/common/full-page-loader";
 import { Logo } from "@/components/layout/logo";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { REDIRECT_PARAM } from "@/lib/constants";
-import { dashboardFor } from "@/lib/routes";
+import { safeRedirect } from "@/lib/routes";
 
 /**
  * Shell for the sign-in and sign-up screens.
@@ -34,7 +34,11 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
      * an effect, so `window` is always defined.
      */
     const next = new URLSearchParams(window.location.search).get(REDIRECT_PARAM);
-    router.replace(next ?? dashboardFor(user.role));
+
+    // Validated against the signed-in role, exactly as in the login form - an
+    // already-authenticated visitor arriving with a stale or hostile `next`
+    // must not be forwarded to another role's section either.
+    router.replace(safeRedirect(next, user.role));
   }, [isAuthenticated, isInitialising, router, user]);
 
   // Hold the form back until the session check settles, so an authenticated

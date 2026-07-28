@@ -68,13 +68,20 @@ export async function activateUser(
 /**
  * Blocks a user from signing in.
  *
- * Existing sessions are NOT terminated: the flag is read when the principal is
- * loaded at authentication, so an already-issued JWT keeps working until it
- * expires. Deactivation prevents the next login rather than ending the current
- * session, and the UI says so rather than implying immediate lockout.
+ * Takes effect on the user's very NEXT request, not just their next login.
+ * `JwtAuthenticationFilter` reloads the principal on every call and checks
+ * `userDetails.isEnabled()`, so a live JWT stops being accepted immediately.
  *
- * The backend applies no guard whatsoever here - see `useUpdateUserStatus` for
- * the one protection the frontend can legitimately add.
+ * (This was not always true. The filter previously authenticated straight from
+ * the UserDetails without consulting the disabled flag, which left a
+ * deactivated account with full API access until its token expired - up to 24
+ * hours. Fixed during integration testing; noted here because the earlier
+ * behaviour was documented as if it were inherent to stateless JWTs, and it
+ * was not.)
+ *
+ * The backend applies no guard on WHOM may be deactivated - see `canDeactivate`
+ * for the one protection the frontend can legitimately add, and
+ * SECURITY-NOTES.md for the server-side invariants still outstanding.
  */
 export async function deactivateUser(
   userId: string,

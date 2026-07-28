@@ -82,10 +82,14 @@ caller, and `AdminController` passes no principal to it. An admin can therefore
 deactivate themselves through `PUT /api/admin/users/{ownId}/deactivate`.
 
 **Consequence:** `CustomUserDetailsService` builds the principal with
-`.disabled(!user.isActive())`, so the account is refused at the next sign-in.
-The admin cannot reverse it, because reversing it requires the admin portal they
-have just locked themselves out of. Recovery means either updating the row
-directly in the database, or the restart route described in §2.
+`.disabled(!user.isActive())`, and since the integration-testing fix
+`JwtAuthenticationFilter` checks `isEnabled()` on every request. The account is
+therefore refused **immediately**, on the admin's very next API call — not at
+their next sign-in. That makes this guard more valuable than when it was
+written: the lockout is instant and the admin cannot reverse it, because
+reversing it requires the admin portal they have just lost access to. Recovery
+means either updating the row directly in the database, or the restart route
+described in §2.
 
 **Frontend today:** `canDeactivate()` in
 `features/admin-user-management/lib/user-utils.ts` compares the row's id with
