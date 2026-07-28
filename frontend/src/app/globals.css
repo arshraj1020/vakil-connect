@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * VakilConnect design tokens.
+ *
+ * This file is the single source of truth for colour. Components must only
+ * ever reference semantic tokens (bg-background, text-muted-foreground,
+ * border-border) - never raw hex values. That is what makes dark mode a
+ * zero-cost concern instead of a per-component chore.
+ *
+ * Values are space-separated HSL channels so Tailwind can apply opacity
+ * modifiers, e.g. bg-primary/10.
+ *
+ * Brand accent: #D4AF37 (the gold used in the project README) = hsl(46 65% 52%).
+ */
+
+@layer base {
+  :root {
+    /* Surfaces */
+    --background: 0 0% 100%;
+    --foreground: 222 20% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 20% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 20% 11%;
+
+    /* Brand */
+    --primary: 46 65% 42%;
+    --primary-foreground: 46 80% 97%;
+
+    /* Neutrals */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 20% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 20% 11%;
+
+    /* Semantic status colours - used by StatusBadge and toasts */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 71% 36%;
+    --success-foreground: 0 0% 98%;
+
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 98%;
+
+    --info: 217 91% 55%;
+    --info-foreground: 0 0% 98%;
+
+    /* Lines & focus */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 46 65% 42%;
+
+    /* Radius scale - `lg` is the base; rounded-xl on cards derives from it */
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 24% 8%;
+    --foreground: 210 20% 96%;
+
+    --card: 222 22% 11%;
+    --card-foreground: 210 20% 96%;
+
+    --popover: 222 22% 11%;
+    --popover-foreground: 210 20% 96%;
+
+    /* Gold is lifted in dark mode so it stays legible on dark surfaces */
+    --primary: 46 70% 58%;
+    --primary-foreground: 222 24% 8%;
+
+    --secondary: 217 19% 17%;
+    --secondary-foreground: 210 20% 96%;
+
+    --muted: 217 19% 17%;
+    --muted-foreground: 218 11% 65%;
+
+    --accent: 217 19% 17%;
+    --accent-foreground: 210 20% 96%;
+
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 65% 45%;
+    --success-foreground: 222 24% 8%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 222 24% 8%;
+
+    --info: 217 91% 65%;
+    --info-foreground: 222 24% 8%;
+
+    --border: 217 19% 20%;
+    --input: 217 19% 20%;
+    --ring: 46 70% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Consistent focus treatment across every interactive element. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
