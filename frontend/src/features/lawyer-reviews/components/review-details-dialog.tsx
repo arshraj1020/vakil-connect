@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, Clock, MapPin, User, Video } from "lucide-react";
+import { hasComment } from "@/lib/reviews";
 import type { LucideIcon } from "lucide-react";
 
 import { RatingStars } from "@/components/common/rating-stars";
@@ -14,8 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { formatDateLong, formatTime, formatTimestamp } from "@/lib/date";
 import type { AppointmentResponse, ReviewResponse } from "@/types";
-
-import { hasComment } from "../lib/review-utils";
 
 /**
  * Every field the API holds about one review.

@@ -1,4 +1,9 @@
-# Dependency Security Notes
+# Security Notes
+
+Two sections: dependency advisories, and authorization invariants that the
+frontend cannot enforce.
+
+## Dependency advisories
 
 `npm audit` reports advisories against the full dependency *graph*, including
 build tooling that never reaches a browser. This note records which advisories
@@ -57,3 +62,64 @@ meaningful gain. Clears naturally when ESLint updates its internal minimatch.
 - Judge advisories by reachability, not count. A build-time advisory in a dev
   dependency is not equivalent to one in the runtime request path.
 - Re-review on every dependency upgrade and before each release.
+
+---
+
+# Authorization invariants
+
+Rules the product depends on that are **not enforced by the backend**. Each is
+listed with whatever the frontend does about it, and why that is not sufficient.
+
+The general principle: a check that runs in the browser is a usability feature.
+It prevents mistakes, never misuse. Any client can issue the underlying request
+directly, so an invariant is only enforced once the server refuses to violate it.
+
+## 1. An administrator must not deactivate their own account
+
+**Backend today:** `AdminServiceImpl.setUserActive(userId, active)` loads the
+user by id, assigns the flag and saves. It does not compare `userId` against the
+caller, and `AdminController` passes no principal to it. An admin can therefore
+deactivate themselves through `PUT /api/admin/users/{ownId}/deactivate`.
+
+**Consequence:** `CustomUserDetailsService` builds the principal with
+`.disabled(!user.isActive())`, so the account is refused at the next sign-in.
+The admin cannot reverse it, because reversing it requires the admin portal they
+have just locked themselves out of. Recovery means either updating the row
+directly in the database, or the restart route described in §2.
+
+**Frontend today:** `canDeactivate()` in
+`features/admin-user-management/lib/user-utils.ts` compares the row's id with
+the signed-in user's and renders the control disabled, with the reason on the
+button. This is a **UX safeguard only** — it prevents an accidental click and
+nothing else. A direct API call from curl or the devtools console succeeds
+exactly as before.
+
+**Should be:** reject the request server-side when the target id equals the
+authenticated principal's id — a `BusinessRuleException` returning 409, matching
+how other business rules already answer.
+
+## 2. The platform must always retain at least one active administrator
+
+**Backend today:** nothing counts administrators before deactivating one.
+
+**Consequence:** with two admin accounts, A can deactivate B and B can
+deactivate A. The platform is then left with no administrator able to sign in.
+
+Recovery is possible but manual. `AdminBootstrapRunner` skips when a user with
+`ADMIN_EMAIL` already exists — it keys on that **email**, not on "an admin
+exists" — so restarting with the original `ADMIN_EMAIL` does nothing, while
+restarting with a *different* `ADMIN_EMAIL` creates a fresh active admin. That
+is a deployment-config change under time pressure, not a fix.
+
+**Frontend today:** nothing, and nothing is possible. The guard above happens to
+cover the single-admin case — if exactly one admin exists, it is the one signed
+in — but that is coincidence, not coverage. The browser cannot count *active*
+admins: `GET /api/admin/users?role=ADMIN` is paginated, and analytics reports
+`totalAdmins` by role without regard to the active flag.
+
+**Should be:** count active admins inside the same transaction as the write and
+refuse the last one. It has to be transactional — two concurrent requests each
+seeing "two active admins" would otherwise both succeed and leave zero.
+
+> **Revisit when:** the admin portal is hardened for real deployment, or before
+> any environment gets more than one administrator account.

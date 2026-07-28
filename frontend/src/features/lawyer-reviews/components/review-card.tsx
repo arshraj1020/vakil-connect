@@ -6,9 +6,8 @@ import { InitialsAvatar } from "@/components/common/initials-avatar";
 import { RatingStars } from "@/components/common/rating-stars";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate, formatTimestamp } from "@/lib/date";
+import { describeRating, hasComment } from "@/lib/reviews";
 import type { AppointmentResponse, ReviewResponse } from "@/types";
-
-import { describeRating, hasComment } from "../lib/review-utils";
 
 /**
  * One review, as a row in the list.

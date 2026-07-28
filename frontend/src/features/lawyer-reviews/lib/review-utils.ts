@@ -40,19 +40,3 @@ export function findReviewAppointment(
 ): AppointmentResponse | null {
   return byId.get(review.appointmentId) ?? null;
 }
-
-/** Whether the client wrote anything beyond the star rating. `comment` is nullable. */
-export function hasComment(review: ReviewResponse): boolean {
-  return typeof review.comment === "string" && review.comment.trim().length > 0;
-}
-
-/**
- * A rating in words, for screen readers and for the summary card.
- *
- * `RatingStars` already announces "Rated 4 out of 5" on its wrapper, so this is
- * used where the stars are absent or where a card needs a single accessible
- * name that also identifies the reviewer.
- */
-export function describeRating(rating: number): string {
-  return `${rating} out of 5 stars`;
-}
