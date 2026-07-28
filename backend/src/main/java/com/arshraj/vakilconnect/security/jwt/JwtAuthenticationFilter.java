@@ -9,6 +9,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -53,7 +54,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UserDetails userDetails =
                         userDetailsService.loadUserByUsername(email);
 
-                if (jwtService.isTokenValid(token, userDetails.getUsername())) {
+                /*
+                 * isEnabled() must be checked here explicitly.
+                 *
+                 * CustomUserDetailsService builds the principal with
+                 * .disabled(!user.isActive()), but that flag is only enforced by
+                 * DaoAuthenticationProvider, which runs during login and nowhere
+                 * else. Authenticating straight from the UserDetails - as this
+                 * filter does - bypasses it entirely, so without this check a
+                 * deactivated account kept full API access until its token
+                 * expired, up to 24 hours later.
+                 *
+                 * The current value is already loaded on every request, so this
+                 * makes deactivation take effect on the very next call.
+                 */
+                if (jwtService.isTokenValid(token, userDetails.getUsername())
+                        && userDetails.isEnabled()) {
 
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
@@ -72,9 +88,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
 
-        } catch (JwtException | IllegalArgumentException ignored) {
-            // Invalid or expired token.
-            // Leave the SecurityContext empty and continue the filter chain.
+        } catch (JwtException | IllegalArgumentException | UsernameNotFoundException ignored) {
+            /*
+             * Invalid token, expired token, or a well-formed token whose subject
+             * no longer exists (a deleted account).
+             *
+             * UsernameNotFoundException is included deliberately: it is an
+             * AuthenticationException rather than a JwtException, so it used to
+             * escape this filter uncaught and surface as a 500. Leaving the
+             * SecurityContext empty instead lets the chain continue and the
+             * entry point answer 401, which is what the caller should see.
+             */
         }
 
         filterChain.doFilter(request, response);
