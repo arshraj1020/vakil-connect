@@ -17,6 +17,16 @@ public interface LawyerService {
             CreateLawyerProfileRequest request
     );
 
+    /**
+     * The profile of the authenticated lawyer, resolved from their email.
+     *
+     * The counterpart to {@link #updateCurrentLawyerProfile}. Distinct from
+     * {@link #getLawyerProfile(UUID)}, which takes a lawyer id: a lawyer has no
+     * way to learn their own lawyer id, since it differs from their user id and
+     * appears in no authentication response.
+     */
+    LawyerProfileResponse getCurrentLawyerProfile(String userEmail);
+
     LawyerProfileResponse updateCurrentLawyerProfile(
             String userEmail,
             UpdateLawyerProfileRequest request

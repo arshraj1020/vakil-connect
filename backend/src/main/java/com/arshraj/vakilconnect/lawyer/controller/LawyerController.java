@@ -32,6 +32,20 @@ public class LawyerController {
         return appointmentService.getCurrentLawyerDashboard(authentication.getName());
     }
 
+    /**
+     * The authenticated lawyer's own profile.
+     *
+     * Necessary because {@code GET /api/lawyers/{lawyerId}} needs a lawyer id,
+     * and a lawyer cannot obtain their own: it is a separate primary key from
+     * their user id, and is absent from both the JWT and the login response.
+     * Without this, the profile screen could not read what a PUT is about to
+     * overwrite.
+     */
+    @GetMapping("/api/lawyer/profile")
+    public LawyerProfileResponse getProfile(Authentication authentication) {
+        return lawyerService.getCurrentLawyerProfile(authentication.getName());
+    }
+
     @PostMapping("/api/lawyer/profile")
     public ResponseEntity<LawyerProfileResponse> createProfile(
             Authentication authentication,

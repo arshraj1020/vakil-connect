@@ -115,6 +115,26 @@ public class LawyerServiceImpl implements LawyerService {
         return lawyers.map(this::toSummaryResponse);
     }
 
+    /*
+     * readOnly for the same reason as the other reads: Lawyer.specializations is
+     * a LAZY @ManyToMany and open-in-view is disabled, so mapping it outside a
+     * transaction would throw LazyInitializationException.
+     *
+     * The lookup deliberately mirrors updateCurrentLawyerProfile exactly, so the
+     * profile a lawyer reads is by construction the one their next PUT writes.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public LawyerProfileResponse getCurrentLawyerProfile(String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Lawyer lawyer = lawyerRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer profile not found"));
+
+        return toProfileResponse(lawyer);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public LawyerProfileResponse getLawyerProfile(UUID lawyerId) {
