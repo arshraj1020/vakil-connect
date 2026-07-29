@@ -41,7 +41,19 @@ public class LawyerServiceImpl implements LawyerService {
         this.specializationRepository = specializationRepository;
     }
 
+    /*
+     * Same reasoning as verifyLawyer: this method also ends by calling
+     * toProfileResponse, which touches the LAZY specializations collection.
+     *
+     * It had not surfaced in practice because registration creates the Lawyer
+     * through AuthServiceImpl, which is annotated @Transactional at class
+     * level - this endpoint (POST /api/lawyer/profile) is the other, rarer path
+     * to the same mapping. Annotating it closes the latent defect and also makes
+     * the several writes here (specialization resolution, then the lawyer
+     * insert) atomic rather than independently committed.
+     */
     @Override
+    @Transactional
     public LawyerProfileResponse createLawyerProfile(
             String userEmail,
             CreateLawyerProfileRequest request) {
@@ -151,7 +163,23 @@ public class LawyerServiceImpl implements LawyerService {
                 .map(this::toSummaryResponse);
     }
 
+    /*
+     * @Transactional is required, not decorative.
+     *
+     * Without it, findById and save each ran in their own transaction and the
+     * entity was detached by the time toProfileResponse mapped it. That method
+     * reads `lawyer.getSpecializations()` - the only LAZY association in the
+     * domain - and with open-in-view disabled the read threw
+     * LazyInitializationException AFTER the save had already committed.
+     *
+     * The visible effect was the worst kind: the lawyer really was verified,
+     * but the admin saw HTTP 500 "An unexpected error occurred" and had no way
+     * to tell the write had succeeded.
+     *
+     * Read-write, not readOnly: this method writes.
+     */
     @Override
+    @Transactional
     public LawyerProfileResponse verifyLawyer(UUID lawyerId) {
         Lawyer lawyer = lawyerRepository.findById(lawyerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
