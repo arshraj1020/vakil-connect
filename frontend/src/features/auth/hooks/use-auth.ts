@@ -16,7 +16,14 @@ import {
   selectUser,
   useAuthStore,
 } from "@/stores/auth-store";
-import { isApiError, type LoginRequest, type RegisterRequest, type RegisterResponse, type Role } from "@/types";
+import {
+  isApiError,
+  type CurrentUserResponse,
+  type LoginRequest,
+  type RegisterRequest,
+  type RegisterResponse,
+  type Role,
+} from "@/types";
 
 /**
  * The single entry point for authentication in the UI.
@@ -130,6 +137,21 @@ export function useAuth() {
     router.replace(ROUTES.LOGIN);
   }, [queryClient, reset, router]);
 
+  /**
+   * Replaces the session record after the user edits their own account.
+   *
+   * The app shell reads `fullName` from the store, so a client renaming
+   * themselves on the profile screen must be reflected there immediately -
+   * otherwise the navbar keeps the old name until a full reload.
+   *
+   * Exposed here rather than having features write to the store directly, so
+   * `useAuth` remains the only way the UI touches session state.
+   */
+  const updateSessionUser = useCallback(
+    (updated: CurrentUserResponse) => setUser(updated),
+    [setUser],
+  );
+
   /** Convenience for role-conditional UI; guards use this too. */
   const hasRole = useCallback(
     (expected: Role) => user?.role === expected,
@@ -147,6 +169,7 @@ export function useAuth() {
     login,
     register,
     logout,
+    updateSessionUser,
     hasRole,
   };
 }

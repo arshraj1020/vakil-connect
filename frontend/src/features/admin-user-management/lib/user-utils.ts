@@ -1,52 +1,18 @@
-import { ShieldCheck, Scale, UserRound, type LucideIcon } from "lucide-react";
-
+import { getRoleMeta } from "@/lib/roles";
 import type { Role, UserSummaryResponse } from "@/types";
 
 /**
  * Presentation rules for user accounts.
  *
  * No formatting is defined here - dates go through `lib/date`, numbers through
- * `lib/format`. What lives here is the mapping from the two enum-ish fields the
- * backend returns (`role`, `active`) to labels, colours and icons, plus the one
+ * `lib/format`. Role presentation lives in `lib/roles.ts`, shared with the
+ * client profile screen and re-exported below so this feature's components keep
+ * a single import. What remains here is account STATUS presentation and the one
  * safety rule the frontend can enforce that the backend does not.
  */
 
-export interface RoleMeta {
-  label: string;
-  /** Badge variant, expressed semantically rather than by hue. */
-  intent: "default" | "secondary" | "info";
-  icon: LucideIcon;
-  description: string;
-}
-
-/**
- * Typed as a total Record, so adding a role to the backend enum fails to
- * compile here until it is handled - better than rendering it unstyled.
- */
-export const ROLE_META: Record<Role, RoleMeta> = {
-  CLIENT: {
-    label: "Client",
-    intent: "secondary",
-    icon: UserRound,
-    description: "Books consultations with lawyers.",
-  },
-  LAWYER: {
-    label: "Lawyer",
-    intent: "info",
-    icon: Scale,
-    description: "Offers consultations. Must be verified to appear in search.",
-  },
-  ADMIN: {
-    label: "Admin",
-    intent: "default",
-    icon: ShieldCheck,
-    description: "Full access to the administration portal.",
-  },
-};
-
-export function getRoleMeta(role: Role): RoleMeta {
-  return ROLE_META[role];
-}
+// Re-exported so existing imports in this feature stay unchanged.
+export { getRoleMeta };
 
 /** The role choices offered in the filter, plus "all". */
 export const ROLE_FILTER_OPTIONS = [

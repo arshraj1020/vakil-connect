@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { lawyerProfileSchema } from "@/features/lawyer-profile/schemas/lawyer-profile-schema";
+import { optionalPhoneNumberSchema } from "@/lib/validation";
 
 /**
  * Registration validation.
@@ -30,8 +31,6 @@ import { lawyerProfileSchema } from "@/features/lawyer-profile/schemas/lawyer-pr
  * ADMIN is absent by construction: the backend rejects it with 400.
  */
 
-const PHONE_PATTERN = /^\+?[0-9]{10,15}$/;
-
 export const registerSchema = z
   .object({
     role: z.enum(["CLIENT", "LAWYER"]),
@@ -47,12 +46,8 @@ export const registerSchema = z
       .min(1, "Email is required")
       .email("Enter a valid email address"),
     password: z.string().min(8, "Password must be at least 8 characters"),
-    phoneNumber: z
-      .string()
-      .trim()
-      .refine((value) => value === "" || PHONE_PATTERN.test(value), {
-        message: "Enter a valid phone number",
-      }),
+    // Shared with the client profile form; see lib/validation.ts.
+    phoneNumber: optionalPhoneNumberSchema,
 
     /**
      * Always present in form state so the fields stay controlled when the role
