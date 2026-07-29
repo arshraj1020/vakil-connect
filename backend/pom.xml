@@ -57,6 +57,21 @@
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
+		<!-- Caching: reference data (countries/states/cities/languages/
+		     specializations). The starter provides spring-context-support,
+		     which is where CaffeineCacheManager lives; Caffeine itself supplies
+		     the bounded, expiring store. Both versions are managed by
+		     spring-boot-starter-parent, so neither is pinned here. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>

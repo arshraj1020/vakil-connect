@@ -70,6 +70,21 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/lawyers/**")
                         .permitAll()
 
+                        /*
+                         * Reference data (countries, states, cities, languages,
+                         * specializations) is public by necessity, not by
+                         * convenience: registration needs these lists BEFORE an
+                         * account exists, so requiring a token would make signup
+                         * impossible. The data is a curated vocabulary and
+                         * discloses nothing about any user.
+                         *
+                         * GET only - there is no write path, and scoping the
+                         * matcher to the verb means adding one later has to be a
+                         * deliberate security decision rather than an accident.
+                         */
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/reference/**")
+                        .permitAll()
+
                         .requestMatchers("/api/client/**")
                         .hasRole("CLIENT")
 
