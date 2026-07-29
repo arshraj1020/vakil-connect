@@ -17,6 +17,17 @@ public interface CityRepository extends JpaRepository<City, UUID> {
     /** The exact-match path: uniqueness is scoped to the state. */
     Optional<City> findByStateIdAndNameNormalized(UUID stateId, String nameNormalized);
 
+    /**
+     * Country-wide lookup by canonical name, used by the dual-write resolver
+     * where only a free-text city name is available and no state is known.
+     *
+     * Returns a LIST, not an Optional: uniqueness is scoped to the STATE, so the
+     * same name could legitimately exist twice. Every seeded name is currently
+     * unique country-wide, but the caller must still decide what an ambiguous
+     * match means rather than have one silently picked here.
+     */
+    List<City> findByNameNormalizedAndActiveTrue(String nameNormalized);
+
     long countByStateId(UUID stateId);
 
     /**
