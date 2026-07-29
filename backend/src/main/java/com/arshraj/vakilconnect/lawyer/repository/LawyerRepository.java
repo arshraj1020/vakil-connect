@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +28,33 @@ public interface LawyerRepository extends JpaRepository<Lawyer, UUID> {
     long countByVerifiedTrue();
 
     long countByVerifiedFalse();
+
+    /* ------------------------------------------ reconciliation (Phase 2F) --
+     * Read-only counters backing the migration readiness report. They exist so
+     * the state of the backfill is observable before anyone considers a read
+     * cut-over.
+     */
+
+    long countByPrimaryCityIsNull();
+
+    long countByPracticeCitiesIsEmpty();
+
+    long countByLanguagesIsEmpty();
+
+    /**
+     * The distinct legacy city strings that failed to resolve.
+     *
+     * This is the actionable half of the report: each value is either a typo to
+     * correct, a city to seed, or an alias to add. Distinct rather than per-row,
+     * because one misspelling usually accounts for many lawyers.
+     */
+    @Query("""
+            SELECT DISTINCT l.city FROM Lawyer l
+            WHERE l.primaryCity IS NULL
+              AND l.city IS NOT NULL
+            ORDER BY l.city
+            """)
+    List<String> findUnresolvedCityNames();
 
     /* ------------------------------------------- reference data (Phase 2B) --
      *

@@ -18,4 +18,15 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Page<User> findByRole(Role role, Pageable pageable);
 
     long countByRole(Role role);
+
+    /* ------------------------------------------ reconciliation (Phase 2F) --
+     * Both are expected to equal the total user count: `users` has never held a
+     * city or a language, so there is no legacy data to backfill from. They are
+     * reported anyway, so the gap stays visible rather than being mistaken for
+     * a completed migration.
+     */
+
+    long countByCityIsNull();
+
+    long countByPreferredLanguageIsNull();
 }
