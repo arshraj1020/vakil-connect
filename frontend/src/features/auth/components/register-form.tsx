@@ -32,7 +32,8 @@ import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { isApiError, type RegisterRequest } from "@/types";
 
-import { SpecializationPicker } from "./specialization-picker";
+import { CityCombobox } from "@/features/reference/components/city-combobox";
+import { SpecializationMultiSelect } from "@/features/reference/components/specialization-multi-select";
 
 const ROLE_OPTIONS = [
   {
@@ -349,11 +350,40 @@ export function RegisterForm() {
                   required
                 >
                   {(field) => (
-                    <Input
-                      {...field}
-                      {...register("lawyerProfile.city")}
-                      autoComplete="address-level2"
-                      placeholder="Mumbai"
+                    <Controller
+                      control={control}
+                      name="lawyerProfile.city"
+                      render={({ field: controlled }) => (
+                        <CityCombobox
+                          id={field.id}
+                          aria-invalid={field["aria-invalid"]}
+                          aria-describedby={field["aria-describedby"]}
+                          /*
+                           * The form field holds the city NAME, exactly as
+                           * before - the submitted payload is unchanged and the
+                           * schema still validates a non-empty string. Only the
+                           * control changed: a picker instead of free text, so
+                           * "Mumbi" can no longer be typed and silently make the
+                           * lawyer unfindable.
+                           *
+                           * The selected object is reconstructed from the name
+                           * for display. Carrying the id through form state
+                           * would change the payload, which is out of scope.
+                           */
+                          value={
+                            controlled.value
+                              ? {
+                                  id: controlled.value,
+                                  name: controlled.value,
+                                  stateId: "",
+                                  stateCode: "",
+                                  stateName: "",
+                                }
+                              : null
+                          }
+                          onChange={(city) => controlled.onChange(city?.name ?? "")}
+                        />
+                      )}
                     />
                   )}
                 </FormField>
@@ -374,23 +404,34 @@ export function RegisterForm() {
                 )}
               </FormField>
 
-              {/*
-                Rendered without FormField: a checkbox group needs <legend>,
-                not <label>, so the picker owns its own label and error markup.
-              */}
-              <Controller
-                control={control}
-                name="lawyerProfile.specializations"
-                render={({ field, fieldState }) => (
-                  <SpecializationPicker
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={fieldState.error?.message}
-                    hint="Select every area you practise in"
-                    required
+              <FormField
+                label="Practice areas"
+                error={errors.lawyerProfile?.specializations?.message}
+                hint="Select every area you practise in"
+                required
+              >
+                {(field) => (
+                  <Controller
+                    control={control}
+                    name="lawyerProfile.specializations"
+                    render={({ field: controlled }) => (
+                      <SpecializationMultiSelect
+                        id={field.id}
+                        aria-invalid={field["aria-invalid"]}
+                        aria-describedby={field["aria-describedby"]}
+                        /*
+                         * Still an array of NAMES - the payload and the schema
+                         * are untouched. The options now come from the server,
+                         * merged with the curated constant so the field is never
+                         * empty on a fresh database.
+                         */
+                        value={controlled.value}
+                        onChange={controlled.onChange}
+                      />
+                    )}
                   />
                 )}
-              />
+              </FormField>
 
               <FormField
                 label="Professional bio"

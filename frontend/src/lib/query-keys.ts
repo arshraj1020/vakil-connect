@@ -81,6 +81,27 @@ const adminKeys = {
    */
 };
 
+/**
+ * Reference vocabularies.
+ *
+ * Deliberately its own namespace, separate from every feature key. These are
+ * the only queries in the application that should never be invalidated by a
+ * feature mutation - note that `useVerifyLawyer` invalidates the whole `lawyers`
+ * prefix, and reference data must not sit anywhere near that.
+ */
+const referenceKeys = {
+  all: ["reference"] as const,
+  countries: () => [...referenceKeys.all, "countries"] as const,
+  states: (countryIso2: string) =>
+    [...referenceKeys.all, "states", countryIso2] as const,
+  cities: (stateId: string) => [...referenceKeys.all, "cities", stateId] as const,
+  /** Keyed by the DEBOUNCED term, so a settled query is a cache hit. */
+  citySearch: (query: string) =>
+    [...referenceKeys.all, "cities", "search", query] as const,
+  languages: () => [...referenceKeys.all, "languages"] as const,
+  specializations: () => [...referenceKeys.all, "specializations"] as const,
+};
+
 export const queryKeys = {
   auth: authKeys,
   lawyers: lawyerKeys,
@@ -88,6 +109,7 @@ export const queryKeys = {
   appointments: appointmentKeys,
   dashboard: dashboardKeys,
   admin: adminKeys,
+  reference: referenceKeys,
 } as const;
 
 export type QueryKeys = typeof queryKeys;
