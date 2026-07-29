@@ -28,6 +28,51 @@ public interface LawyerRepository extends JpaRepository<Lawyer, UUID> {
 
     long countByVerifiedFalse();
 
+    /* ------------------------------------------- reference data (Phase 2B) --
+     *
+     * Fetch-join loaders for the associations added in V4. Nothing in the
+     * application calls them yet - they exist because the alternative is for
+     * callers to touch a LAZY collection and hope a transaction is open, which
+     * is precisely the failure that produced the Phase 1 defect.
+     *
+     * Deliberately one query per collection. `practiceCities` and `languages`
+     * are both Sets, so Hibernate would permit fetching them together, but the
+     * result would be a cartesian product of the two - N x M rows for a single
+     * lawyer. Two round trips beats one bad join.
+     */
+
+    /** One lawyer with `practiceCities` and each city's state resolved. */
+    @Query("""
+            SELECT l FROM Lawyer l
+            LEFT JOIN FETCH l.practiceCities c
+            LEFT JOIN FETCH c.state
+            WHERE l.id = :id
+            """)
+    Optional<Lawyer> findByIdWithPracticeCities(@Param("id") UUID id);
+
+    /** One lawyer with `languages` resolved. */
+    @Query("""
+            SELECT l FROM Lawyer l
+            LEFT JOIN FETCH l.languages
+            WHERE l.id = :id
+            """)
+    Optional<Lawyer> findByIdWithLanguages(@Param("id") UUID id);
+
+    /**
+     * One lawyer with `primaryCity` and its state resolved.
+     *
+     * LEFT JOIN, not JOIN: `primary_city_id` is nullable until the backfill
+     * phase populates it, and an inner join would silently return no row for
+     * every lawyer that has not been migrated yet.
+     */
+    @Query("""
+            SELECT l FROM Lawyer l
+            LEFT JOIN FETCH l.primaryCity pc
+            LEFT JOIN FETCH pc.state
+            WHERE l.id = :id
+            """)
+    Optional<Lawyer> findByIdWithPrimaryCity(@Param("id") UUID id);
+
     /*
      * The nullable text parameters are explicitly CAST to String.
      *

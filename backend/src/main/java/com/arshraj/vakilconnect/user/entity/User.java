@@ -1,11 +1,16 @@
 package com.arshraj.vakilconnect.user.entity;
 
 import com.arshraj.vakilconnect.common.entity.BaseEntity;
+import com.arshraj.vakilconnect.reference.entity.City;
+import com.arshraj.vakilconnect.reference.entity.Language;
 import com.arshraj.vakilconnect.user.enums.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -91,5 +96,48 @@ public class User extends BaseEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    /* ------------------------------------------------- reference data (V4) --
+     * Added in Phase 2B. Both are optional for every role and nothing reads
+     * them yet - no DTO exposes them, and registration does not set them.
+     *
+     * LAZY and nullable. A nullable LAZY @ManyToOne on the OWNING side is safe
+     * to proxy, because Hibernate reads the FK value from this row and knows
+     * whether there is anything to resolve.
+     *
+     * The practical caution is the same one that produced the Phase 1 defect:
+     * `User` is mapped to a DTO in several places (toUserSummary,
+     * toProfileResponse, getCurrentUser). None of them touch these fields
+     * today. The moment one does, that method must be @Transactional or it will
+     * throw LazyInitializationException outside a session.
+     *
+     * No cascade: cities and languages are shared reference rows.
+     */
+
+    /** Where the user is based. Optional; clients need it only for suggestions. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "city_id")
+    private City city;
+
+    /** Preferred language for communication. Optional. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "preferred_language_id")
+    private Language preferredLanguage;
+
+    public City getCity() {
+        return city;
+    }
+
+    public void setCity(City city) {
+        this.city = city;
+    }
+
+    public Language getPreferredLanguage() {
+        return preferredLanguage;
+    }
+
+    public void setPreferredLanguage(Language preferredLanguage) {
+        this.preferredLanguage = preferredLanguage;
     }
 }
