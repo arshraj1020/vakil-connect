@@ -4,9 +4,11 @@ import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
 import com.arshraj.vakilconnect.lawyer.repository.LawyerRepository;
 import com.arshraj.vakilconnect.reference.metrics.ReferenceFallbackMetrics;
 import com.arshraj.vakilconnect.reference.metrics.ReferenceMigrationMetrics;
+import com.arshraj.vakilconnect.reference.reconciliation.ReconciliationReport;
 import com.arshraj.vakilconnect.reference.reconciliation.ReferenceReconciliationService;
 import com.arshraj.vakilconnect.support.AbstractIntegrationTest;
 import com.arshraj.vakilconnect.user.entity.User;
+import com.arshraj.vakilconnect.user.repository.UserRepository;
 import io.micrometer.core.instrument.FunctionCounter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -18,10 +20,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -46,7 +50,9 @@ class ReferenceMigrationMetricsIT extends AbstractIntegrationTest {
 
     private static final String READS = "vakilconnect.reference.city.reads";
     private static final String MISSING_PRIMARY = "vakilconnect.reference.lawyers.missing.primary.city";
+    private static final String MISSING_PRACTICE = "vakilconnect.reference.lawyers.missing.practice.cities";
     private static final String UNRESOLVED = "vakilconnect.reference.unresolved.cities";
+    private static final String AGE = "vakilconnect.reference.reconciliation.age.seconds";
 
     /** Not a curated city, so a lawyer here is permanently a fallback read. */
     private static final String UNRESOLVABLE_CITY = "Gotham";
@@ -55,6 +61,7 @@ class ReferenceMigrationMetricsIT extends AbstractIntegrationTest {
     @Autowired private ReferenceFallbackMetrics fallbackMetrics;
     @Autowired private ReferenceReconciliationService reconciliationService;
     @Autowired private LawyerRepository lawyerRepository;
+    @Autowired private UserRepository userRepository;
 
     @Value("${management.endpoints.web.exposure.include}")
     private String exposedEndpoints;
@@ -113,10 +120,39 @@ class ReferenceMigrationMetricsIT extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("both reconciliation gauges are registered")
+        @DisplayName("all three reconciliation gauges are registered")
         void reconciliationGaugesAreRegistered() {
             assertNotNull(gauge(MISSING_PRIMARY), "missing gauge: " + MISSING_PRIMARY);
             assertNotNull(gauge(UNRESOLVED), "missing gauge: " + UNRESOLVED);
+            assertNotNull(gauge(MISSING_PRACTICE), "missing gauge: " + MISSING_PRACTICE);
+        }
+
+        /**
+         * Phase 2G.7. The DTO path falls back on `primaryCity == null` and the
+         * SEARCH predicate falls back on `practiceCities IS EMPTY`; a row that
+         * violates the Option C invariant is served from the legacy search
+         * branch while every other meter reports it as migrated. Without this
+         * gauge, gate condition G4 needs a hand-run SQL query.
+         */
+        @Test
+        @DisplayName("the search branch has its own gauge, distinct from the primary-city one")
+        void searchBranchIsInstrumentedSeparately() {
+            assertNotNull(gauge(MISSING_PRACTICE));
+            assertNotEquals(MISSING_PRIMARY, MISSING_PRACTICE,
+                    "the two fallback branches must not share a meter");
+        }
+
+        /**
+         * Phase 2G.8. The value gauges serve a cached report and keep serving it
+         * when a refresh fails, so a reading alone cannot say whether it is
+         * live. Exact freshness semantics are covered by
+         * ReferenceMigrationFreshnessTest, which controls the clock; here we
+         * only assert the gauge is wired into the application's own registry.
+         */
+        @Test
+        @DisplayName("the reconciliation age gauge is registered")
+        void ageGaugeIsRegistered() {
+            assertNotNull(gauge(AGE), "missing gauge: " + AGE);
         }
 
         @Test
@@ -126,6 +162,8 @@ class ReferenceMigrationMetricsIT extends AbstractIntegrationTest {
             assertNotNull(reads("reference").getId().getDescription());
             assertNotNull(gauge(MISSING_PRIMARY).getId().getDescription());
             assertNotNull(gauge(UNRESOLVED).getId().getDescription());
+            assertNotNull(gauge(MISSING_PRACTICE).getId().getDescription());
+            assertNotNull(gauge(AGE).getId().getDescription());
         }
 
         /**
@@ -221,10 +259,27 @@ class ReferenceMigrationMetricsIT extends AbstractIntegrationTest {
         @Test
         @DisplayName("the gauges agree with the reconciliation report they summarise")
         void gaugesMatchTheReport() {
-            assertEquals(reconciliationService.report().lawyersMissingPrimaryCity(),
-                    gauge(MISSING_PRIMARY).value(), 0.0001);
-            assertEquals(reconciliationService.report().unresolvedCityNames().size(),
-                    gauge(UNRESOLVED).value(), 0.0001);
+            ReconciliationReport report = reconciliationService.report();
+
+            assertEquals(report.lawyersMissingPrimaryCity(), gauge(MISSING_PRIMARY).value(), 0.0001);
+            assertEquals(report.unresolvedCityNames().size(), gauge(UNRESOLVED).value(), 0.0001);
+            assertEquals(report.lawyersMissingPracticeCities(),
+                    gauge(MISSING_PRACTICE).value(), 0.0001);
+        }
+
+        /**
+         * A lawyer whose city does not resolve gets neither a primary city nor a
+         * practice-city row, so both gauges must move together. They are
+         * separate meters because they can diverge; on ordinary data they do not.
+         */
+        @Test
+        @DisplayName("an unlinked lawyer raises the practice-cities gauge too")
+        void practiceGaugeTracksUnlinkedLawyers() throws Exception {
+            double before = gauge(MISSING_PRACTICE).value();
+
+            seedLawyer("Atlantis-" + UUID.randomUUID().toString().substring(0, 8));
+
+            assertEquals(before + 1, gauge(MISSING_PRACTICE).value(), 0.0001);
         }
     }
 
@@ -277,6 +332,42 @@ class ReferenceMigrationMetricsIT extends AbstractIntegrationTest {
             assertFalse(Double.isNaN(gauge(MISSING_PRIMARY).value()),
                     "NaN means the reconciliation query failed");
             assertFalse(Double.isNaN(gauge(UNRESOLVED).value()));
+            assertFalse(Double.isNaN(gauge(MISSING_PRACTICE).value()));
+        }
+
+        /**
+         * A FULLY MIGRATED SYSTEM REPORTS 0.0 ON EVERY GAUGE.
+         *
+         * This is the reading that opens the Phase 2H gate, so it has to be
+         * produced deliberately rather than hoped for. The shared test database
+         * always holds unmigrated lawyers - other classes create them
+         * continuously - so the completed state is unreachable there.
+         *
+         * The service is subclassed rather than mocked: this codebase uses no
+         * mocking framework, and one overridden method is a smaller precedent to
+         * set than a new testing style. The real repositories are passed so no
+         * inherited method can trip over a null.
+         */
+        @Test
+        @DisplayName("a fully migrated system reports 0.0 on every gauge, not an absent meter")
+        void completedMigrationReportsZero() {
+            ReferenceReconciliationService allMigrated =
+                    new ReferenceReconciliationService(lawyerRepository, userRepository) {
+                        @Override
+                        public ReconciliationReport report() {
+                            return new ReconciliationReport(
+                                    10, 0, List.of(), 0, 10, 10, 10, 10);
+                        }
+                    };
+
+            MeterRegistry fresh = new SimpleMeterRegistry();
+            new ReferenceMigrationMetrics(
+                    new ReferenceFallbackMetrics(), allMigrated, Duration.ZERO).bindTo(fresh);
+
+            assertEquals(0.0, fresh.find(MISSING_PRIMARY).gauge().value(), 0.0001);
+            assertEquals(0.0, fresh.find(UNRESOLVED).gauge().value(), 0.0001);
+            assertEquals(0.0, fresh.find(MISSING_PRACTICE).gauge().value(), 0.0001,
+                    "a migrated search axis must publish zero, not nothing");
         }
     }
 }

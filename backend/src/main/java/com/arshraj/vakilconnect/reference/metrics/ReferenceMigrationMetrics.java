@@ -8,9 +8,11 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.ToLongFunction;
@@ -55,18 +57,41 @@ public class ReferenceMigrationMetrics implements MeterBinder {
     private final ReferenceFallbackMetrics fallbackMetrics;
     private final ReferenceReconciliationService reconciliationService;
     private final Duration reconciliationTtl;
+    private final Clock clock;
+
+    /** When this instance was created - the age baseline before any refresh succeeds. */
+    private final Instant startedAt;
 
     private volatile ReconciliationReport cachedReport;
     private volatile Instant cachedAt = Instant.EPOCH;
 
+    @Autowired
     public ReferenceMigrationMetrics(
             ReferenceFallbackMetrics fallbackMetrics,
             ReferenceReconciliationService reconciliationService,
             @Value("${vakilconnect.migration.reconciliation-ttl:PT5M}") Duration reconciliationTtl) {
 
+        this(fallbackMetrics, reconciliationService, reconciliationTtl, Clock.systemUTC());
+    }
+
+    /**
+     * Clock-injecting constructor, for tests.
+     *
+     * Staleness is a statement about elapsed time, and a test that asserts it by
+     * sleeping is both slow and flaky. Package-private: nothing in the
+     * application should be choosing a clock.
+     */
+    ReferenceMigrationMetrics(
+            ReferenceFallbackMetrics fallbackMetrics,
+            ReferenceReconciliationService reconciliationService,
+            Duration reconciliationTtl,
+            Clock clock) {
+
         this.fallbackMetrics = fallbackMetrics;
         this.reconciliationService = reconciliationService;
         this.reconciliationTtl = reconciliationTtl;
+        this.clock = clock;
+        this.startedAt = clock.instant();
     }
 
     @Override
@@ -104,6 +129,76 @@ public class ReferenceMigrationMetrics implements MeterBinder {
                         self -> self.reportValue(r -> r.unresolvedCityNames().size()))
                 .description("Distinct legacy city strings that resolve to no curated city")
                 .register(registry);
+
+        /*
+         * THE SEARCH BRANCH, which the two meters above cannot see.
+         *
+         * The DTO path falls back on `primaryCity == null`; the search predicate
+         * falls back on `practiceCities IS EMPTY`. Those agree on every row that
+         * honours the Option C invariant, and disagree only on a row that
+         * violates it - primary set, practice set empty.
+         *
+         * Such a row is invisible to everything else here: search serves it from
+         * the legacy branch with nothing counting that, its DTO reads
+         * `primaryCity` and so increments source="reference", and
+         * lawyers.missing.primary.city reads zero for it. Without this gauge the
+         * Phase 2H gate can go green while the legacy search branch is still
+         * live for part of the table.
+         *
+         * Same cached report as the gauges above - no additional query.
+         */
+        Gauge.builder("vakilconnect.reference.lawyers.missing.practice.cities", this,
+                        self -> self.reportValue(ReconciliationReport::lawyersMissingPracticeCities))
+                .description("Lawyers with no rows in lawyer_practice_cities, "
+                        + "which the search predicate serves from the legacy branch")
+                .register(registry);
+
+        /*
+         * HOW OLD THE THREE GAUGES ABOVE ARE.
+         *
+         * They serve a cached report. On a query failure the cache is served
+         * ANYWAY - deliberately, so a brief database blip does not blank the
+         * dashboard - and the only other trace is a log line. That makes a stale
+         * reading indistinguishable from a live one, and a stale
+         * `unresolved_cities = 0` is precisely the reading that would wrongly
+         * open the Phase 2H gate.
+         *
+         * Reuses `cachedAt`, which is written only after a SUCCESSFUL refresh -
+         * so this measures time since good data, not time since the last
+         * attempt. No second cache, no scheduler.
+         *
+         * NO baseUnit IS SET even though the values are seconds: Micrometer's
+         * Prometheus naming convention appends the base unit to the name, and
+         * the name already ends in `.seconds`. Setting both risks
+         * `..._seconds_seconds`.
+         */
+        Gauge.builder("vakilconnect.reference.reconciliation.age.seconds", this,
+                        ReferenceMigrationMetrics::reconciliationAgeSeconds)
+                .description("Seconds since the reconciliation report was last refreshed "
+                        + "successfully; measured from application start if it never has")
+                .register(registry);
+    }
+
+    /**
+     * Age of the cached report in seconds.
+     *
+     * BEFORE THE FIRST SUCCESS this measures from application start rather than
+     * reporting a sentinel, and that is the deliberate choice here.
+     *
+     * NaN would have been consistent with the value gauges, but it breaks the
+     * alert: `NaN > 900` is false in PromQL, so the one state that most needs
+     * paging - reconciliation has never worked since this process booted -
+     * would page nobody. A magic negative has the same defect. Elapsed-since-
+     * start is a true statement ("there has been no good data for this long"),
+     * it rises monotonically, and it makes the obvious threshold alert fire.
+     *
+     * Telling the two states apart is still possible, and the runbook says how:
+     * when reconciliation has NEVER succeeded the three value gauges read NaN,
+     * while a merely stale cache still serves numbers.
+     */
+    private double reconciliationAgeSeconds() {
+        Instant since = Instant.EPOCH.equals(cachedAt) ? startedAt : cachedAt;
+        return Duration.between(since, clock.instant()).toMillis() / 1000.0;
     }
 
     /**
@@ -124,14 +219,15 @@ public class ReferenceMigrationMetrics implements MeterBinder {
     private ReconciliationReport currentReport() {
         ReconciliationReport snapshot = cachedReport;
 
-        if (snapshot != null && Duration.between(cachedAt, Instant.now()).compareTo(reconciliationTtl) < 0) {
+        if (snapshot != null
+                && Duration.between(cachedAt, clock.instant()).compareTo(reconciliationTtl) < 0) {
             return snapshot;
         }
 
         try {
             snapshot = reconciliationService.report();
             cachedReport = snapshot;
-            cachedAt = Instant.now();
+            cachedAt = clock.instant();
             return snapshot;
         } catch (RuntimeException e) {
             // Keep serving the last known values rather than a gap, but do not
