@@ -320,16 +320,46 @@ class ReferenceBackfillIT extends AbstractIntegrationTest {
          * this data, this test fails and forces the report to be revisited rather
          * than left quietly wrong.
          */
+        /**
+         * DELTAS, not totals.
+         *
+         * This assertion used to compare the report's absolute counts -
+         * totalUsers() == usersMissingCity() and so on - which silently depended
+         * on no other test class ever linking a language. ReferenceLinkageIT
+         * does exactly that, so the totals disagreed by one and this test failed
+         * for a reason unrelated to the backfill. It also contradicted the rule
+         * stated at the top of this class.
+         *
+         * Measuring the change this test itself causes keeps the original intent
+         * intact: every row it creates must arrive unmapped on all three
+         * sourceless targets. If a later phase starts collecting user cities or
+         * lawyer languages at registration, a delta stops matching and the
+         * report has to be revisited - which is the whole point of the test.
+         */
         @Test
-        @DisplayName("targets with no legacy source are reported as fully unmapped")
-        void targetsWithoutASourceAreReportedUnmapped() {
-            ReconciliationReport report = reconciliationService.report();
+        @DisplayName("targets with no legacy source arrive unmapped for rows this test creates")
+        void targetsWithoutASourceAreReportedUnmapped() throws Exception {
+            ReconciliationReport before = reconciliationService.report();
 
-            assertEquals(report.totalUsers(), report.usersMissingCity(),
+            // A lawyer registration also creates a user, so both roles are covered.
+            seedLawyer();
+            registerAndLoginClient(uniqueEmail("backfill-client"));
+
+            ReconciliationReport after = reconciliationService.report();
+
+            long newUsers = after.totalUsers() - before.totalUsers();
+            long newLawyers = after.totalLawyers() - before.totalLawyers();
+
+            assertEquals(2, newUsers, "expected one lawyer user and one client user");
+            assertEquals(1, newLawyers);
+
+            assertEquals(newUsers, after.usersMissingCity() - before.usersMissingCity(),
                     "users have never had a city column to migrate from");
-            assertEquals(report.totalUsers(), report.usersMissingPreferredLanguage(),
+            assertEquals(newUsers,
+                    after.usersMissingPreferredLanguage() - before.usersMissingPreferredLanguage(),
                     "users have never had a language column to migrate from");
-            assertEquals(report.totalLawyers(), report.lawyersMissingLanguages(),
+            assertEquals(newLawyers,
+                    after.lawyersMissingLanguages() - before.lawyersMissingLanguages(),
                     "lawyers have never had a language column to migrate from");
         }
 

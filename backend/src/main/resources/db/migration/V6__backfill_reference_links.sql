@@ -60,10 +60,15 @@
 -- ---------------------------------------------------------------------------
 -- 1. Exact match on the canonical city name.
 --
--- HAVING count(*) = 1 is the never-guess guard. City names are unique
+-- `match_count = 1` is the never-guess guard. City names are unique
 -- country-wide today, but uniqueness is only ENFORCED per state, so a name that
 -- ever resolves to two cities must resolve to neither rather than have one
 -- picked arbitrarily by the join.
+--
+-- Window functions are used instead of MIN/MAX because PostgreSQL
+-- does not define aggregate MIN/MAX for UUID. The COUNT(...) = 1
+-- invariant guarantees exactly one surviving city, so the selected
+-- city_id is identical to the original grouped formulation.
 -- ---------------------------------------------------------------------------
 WITH candidate AS (
     SELECT id,
@@ -72,15 +77,19 @@ WITH candidate AS (
     WHERE primary_city_id IS NULL
       AND city IS NOT NULL
 ),
-matched AS (
+scored AS (
     SELECT c.id AS lawyer_id,
-           min(ct.id) AS city_id
+           ct.id AS city_id,
+           count(*) OVER (PARTITION BY c.id) AS match_count
     FROM candidate c
     JOIN cities ct
       ON ct.active
      AND ct.name_normalized = c.normalized
-    GROUP BY c.id
-    HAVING count(*) = 1
+),
+matched AS (
+    SELECT lawyer_id, city_id
+    FROM scored
+    WHERE match_count = 1
 )
 UPDATE lawyers l
 SET primary_city_id = m.city_id
@@ -98,6 +107,11 @@ WHERE l.id = m.lawyer_id
 --
 -- Same single-match guard: one alias can legitimately point at several cities
 -- in different states, and an ambiguous alias resolves to nothing.
+--
+-- This guard counts DISTINCT CITIES, not rows: two alias spellings pointing at
+-- the same city are not an ambiguity. COUNT(DISTINCT ...) OVER () is not
+-- implemented in PostgreSQL, so alias_target deduplicates first - once the
+-- pairs are distinct, a row count per lawyer IS the distinct-city count.
 -- ---------------------------------------------------------------------------
 WITH candidate AS (
     SELECT id,
@@ -106,17 +120,30 @@ WITH candidate AS (
     WHERE primary_city_id IS NULL
       AND city IS NOT NULL
 ),
-matched AS (
-    SELECT c.id AS lawyer_id,
-           min(ca.city_id) AS city_id
+-- DISTINCT collapses several alias spellings that point at the SAME city into
+-- one row, so the row count below is a count of distinct CITIES - which is what
+-- the guard has always measured.
+alias_target AS (
+    SELECT DISTINCT
+           c.id AS lawyer_id,
+           ca.city_id AS city_id
     FROM candidate c
     JOIN city_aliases ca
       ON ca.alias_normalized = c.normalized
     JOIN cities ct
       ON ct.id = ca.city_id
      AND ct.active
-    GROUP BY c.id
-    HAVING count(DISTINCT ca.city_id) = 1
+),
+scored AS (
+    SELECT lawyer_id,
+           city_id,
+           count(*) OVER (PARTITION BY lawyer_id) AS city_count
+    FROM alias_target
+),
+matched AS (
+    SELECT lawyer_id, city_id
+    FROM scored
+    WHERE city_count = 1
 )
 UPDATE lawyers l
 SET primary_city_id = m.city_id

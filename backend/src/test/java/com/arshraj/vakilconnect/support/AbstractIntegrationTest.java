@@ -79,8 +79,29 @@ public abstract class AbstractIntegrationTest {
 
     // ---------------------------------------------------------------- helpers
 
+    /**
+     * Unique per TEST, not per call - two calls with the same prefix inside one
+     * test return the SAME address. Callers that register more than one account
+     * must use {@link #distinctEmail(String)} instead.
+     */
     protected String uniqueEmail(String prefix) {
         return prefix + "_" + uniqueSuffix + "@test.com";
+    }
+
+    /**
+     * Unique per CALL, for tests that register several accounts.
+     *
+     * `users.email` is UNIQUE, so a second registration reusing the address
+     * returns 409 and creates nothing. That failure is quiet: register() does
+     * not assert a status, and a seed helper that then looks the lawyer up by
+     * email finds the FIRST one - so the test proceeds with two references to a
+     * single row and fails later somewhere unrelated. This is the same hazard
+     * uniqueBarCouncilNumber() already guards against for the other unique
+     * column.
+     */
+    protected String distinctEmail(String prefix) {
+        return prefix + "_" + uniqueSuffix + "_"
+                + UUID.randomUUID().toString().substring(0, 8) + "@test.com";
     }
 
     /**
@@ -109,12 +130,24 @@ public abstract class AbstractIntegrationTest {
 
     /** Request body for a LAWYER registration, including the nested profile. */
     protected Map<String, Object> lawyerRegistration(String email) {
+        return lawyerRegistration(email, "Mumbai");
+    }
+
+    /**
+     * As above, with an explicit city.
+     *
+     * The city is the one field whose value changes what the reference
+     * dual-write and the Phase 2G read cut-over do with the row, so tests that
+     * exercise those paths need to choose it - canonical, alias, or
+     * unresolvable free text.
+     */
+    protected Map<String, Object> lawyerRegistration(String email, String city) {
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("barCouncilNumber", uniqueBarCouncilNumber());
         profile.put("experienceYears", 5);
         profile.put("bio", "Experienced advocate");
         profile.put("consultationFee", 1500);
-        profile.put("city", "Mumbai");
+        profile.put("city", city);
         profile.put("officeAddress", "123 Court Road");
         profile.put("specializations", List.of("Family Law"));
 

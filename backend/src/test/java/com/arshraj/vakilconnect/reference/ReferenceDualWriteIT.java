@@ -216,8 +216,16 @@ class ReferenceDualWriteIT extends AbstractIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(updateRequest("Bombay", List.of("Civil Law")))))
                     .andExpect(status().isOk())
-                    // The legacy column keeps exactly what was sent.
-                    .andExpect(jsonPath("$.city").value("Bombay"));
+                    /*
+                     * Updated by Phase 2G. Until the read cut-over this asserted
+                     * "Bombay", because the response echoed the legacy column.
+                     * Reads now prefer the reference link, so the RESPONSE
+                     * carries the canonical name while the COLUMN still holds
+                     * what was sent - which the two assertions below pin
+                     * separately. See ReferenceReadCutoverIT for the full
+                     * cut-over behaviour.
+                     */
+                    .andExpect(jsonPath("$.city").value("Mumbai"));
 
             Lawyer lawyer = lawyerRepository
                     .findByIdWithPrimaryCity(lawyerFor(email).getId()).orElseThrow();

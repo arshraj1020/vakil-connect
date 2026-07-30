@@ -14,6 +14,7 @@ import com.arshraj.vakilconnect.lawyer.repository.SpecializationRepository;
 import com.arshraj.vakilconnect.common.util.TextNormalizer;
 import com.arshraj.vakilconnect.reference.entity.City;
 import com.arshraj.vakilconnect.reference.entity.CityAlias;
+import com.arshraj.vakilconnect.reference.metrics.ReferenceFallbackMetrics;
 import com.arshraj.vakilconnect.reference.repository.CityAliasRepository;
 import com.arshraj.vakilconnect.reference.repository.CityRepository;
 import com.arshraj.vakilconnect.user.entity.User;
@@ -41,17 +42,20 @@ public class LawyerServiceImpl implements LawyerService {
     private final SpecializationRepository specializationRepository;
     private final CityRepository cityRepository;
     private final CityAliasRepository cityAliasRepository;
+    private final ReferenceFallbackMetrics fallbackMetrics;
 
     public LawyerServiceImpl(LawyerRepository lawyerRepository,
                              UserRepository userRepository,
                              SpecializationRepository specializationRepository,
                              CityRepository cityRepository,
-                             CityAliasRepository cityAliasRepository) {
+                             CityAliasRepository cityAliasRepository,
+                             ReferenceFallbackMetrics fallbackMetrics) {
         this.lawyerRepository = lawyerRepository;
         this.userRepository = userRepository;
         this.specializationRepository = specializationRepository;
         this.cityRepository = cityRepository;
         this.cityAliasRepository = cityAliasRepository;
+        this.fallbackMetrics = fallbackMetrics;
     }
 
     /*
@@ -130,10 +134,40 @@ public class LawyerServiceImpl implements LawyerService {
             Double minRating,
             Pageable pageable) {
 
+        String cityFilter = blankToNull(city);
+
+        /*
+         * Phase 2G: resolve the search TERM before querying, using the same
+         * alias-aware resolver the dual-write uses. Two reasons it happens here
+         * rather than in SQL:
+         *
+         *   1. It is the only way "Bombay" keeps finding the lawyer who typed
+         *      "Bombay" and is now linked to Mumbai. Their normalised practice
+         *      name is "mumbai"; matching the raw term would silently drop them.
+         *   2. Resolution is the same rule as the write path, so a term either
+         *      names a curated city or it does not - no second, subtly
+         *      different matching rule expressed in JPQL.
+         *
+         * An unresolvable or ambiguous term yields null, which confines the
+         * query to the legacy branch. That is the never-guess rule from 2E/2F:
+         * an ambiguous name matches nothing on the reference axis rather than
+         * having one city picked for it.
+         *
+         * Cost is one or two indexed lookups per search that carries a city
+         * filter. Deliberately not cached: the city vocabulary is cached at the
+         * ReferenceDataService layer, and adding a second cache keyed on
+         * arbitrary user input would be an unbounded key space - the same reason
+         * city SEARCH is uncached there.
+         */
+        String cityNormalized = resolveCity(cityFilter)
+                .map(City::getNameNormalized)
+                .orElse(null);
+
         Page<Lawyer> lawyers = lawyerRepository.search(
                 blankToNull(keyword),
                 blankToNull(specialization),
-                blankToNull(city),
+                cityFilter,
+                cityNormalized,
                 minFee,
                 maxFee,
                 minExperience,
@@ -236,6 +270,53 @@ public class LawyerServiceImpl implements LawyerService {
         return (value == null || value.isBlank()) ? null : value.trim();
     }
 
+    /* ------------------------------------------------ read cut-over (2G) --
+     *
+     * The single place a lawyer's city is turned into the string clients see.
+     * Both DTO mappers below go through it, so the preference order is defined
+     * once and cannot drift between the profile and the search card.
+     */
+
+    /**
+     * Reference first, legacy string as fallback.
+     *
+     * WHAT CHANGES FOR CLIENTS. The field, its type and its position are
+     * untouched - `city` is still a plain string on the same responses. What
+     * changes for a LINKED lawyer is that the value is now the CANONICAL name
+     * rather than whatever was typed: "  mumbai " becomes "Mumbai", and
+     * "Bombay" becomes "Mumbai". That canonicalisation is the entire point of
+     * the cut-over; a read that returned the free text unchanged would leave
+     * the reference model decorative. It is also mostly invisible in practice,
+     * because since Phase 2D the frontend writes city names through the picker,
+     * so the typed value and the canonical value are already the same string.
+     *
+     * WHAT DOES NOT CHANGE. An UNLINKED lawyer - unresolvable free text, or a
+     * row the backfill could not match - is returned exactly as before, byte for
+     * byte. Nobody loses their city because the vocabulary is incomplete.
+     *
+     * The fallback is counted rather than logged. Each call is one read, so the
+     * counters are per-DTO, not per-request: a page of ten search results
+     * records ten. That is the intended granularity - the question is what
+     * share of served values still come from the legacy column.
+     *
+     * TRANSACTIONS. `primaryCity` is a LAZY @ManyToOne and open-in-view is
+     * disabled, so every caller of this method must already be inside a
+     * transaction. All of them are, for the same reason they already had to be
+     * for `specializations`. Paged callers additionally fetch it through an
+     * @EntityGraph on the repository, so this does not become an N+1.
+     */
+    private String cityOf(Lawyer lawyer) {
+        City primaryCity = lawyer.getPrimaryCity();
+
+        if (primaryCity != null) {
+            fallbackMetrics.recordCityReferenceRead();
+            return primaryCity.getName();
+        }
+
+        fallbackMetrics.recordCityFallbackRead();
+        return lawyer.getCity();
+    }
+
     private LawyerProfileResponse toProfileResponse(Lawyer lawyer) {
         LawyerProfileResponse response = new LawyerProfileResponse();
 
@@ -248,7 +329,7 @@ public class LawyerServiceImpl implements LawyerService {
         response.setExperienceYears(lawyer.getExperienceYears());
         response.setBio(lawyer.getBio());
         response.setConsultationFee(lawyer.getConsultationFee());
-        response.setCity(lawyer.getCity());
+        response.setCity(cityOf(lawyer));
         response.setOfficeAddress(lawyer.getOfficeAddress());
 
         response.setVerified(lawyer.getVerified());
@@ -268,7 +349,7 @@ public class LawyerServiceImpl implements LawyerService {
 
         response.setId(lawyer.getId());
         response.setFullName(lawyer.getUser().getFullName());
-        response.setCity(lawyer.getCity());
+        response.setCity(cityOf(lawyer));
         response.setExperienceYears(lawyer.getExperienceYears());
         response.setConsultationFee(lawyer.getConsultationFee());
         response.setRating(lawyer.getRating());

@@ -79,21 +79,44 @@ class ReferenceLinkageIT extends AbstractIntegrationTest {
     class NullableRelationships {
 
         /**
-         * The whole point of V4 being additive: existing rows, and rows created
-         * by the untouched registration path, must remain valid with every new
-         * association empty.
+         * UPDATED BY PHASE 2E. Until the dual-write landed, registration left
+         * every V4 association empty and this test asserted exactly that. It now
+         * asserts the opposite for CITY, because registration resolves the
+         * submitted city name and links it.
+         *
+         * The expectation was changed to match intended behaviour, not to make a
+         * red test green. The behaviour asserted here is the 2E contract, and
+         * it is stated independently in ReferenceDualWriteIT#registrationWritesBoth
+         * (link written beside the legacy column) and #primaryCityIsAlsoAPracticeCity
+         * (Option C's invariant, primary IN practice). If the two ever disagree,
+         * the dual-write is broken rather than this test being stale.
+         *
+         * LANGUAGES REMAIN EMPTY, and that is the part of the original point
+         * that still stands: `lawyer_languages` has no legacy source and nothing
+         * writes it, which is why V6 does not backfill it either. An empty
+         * association is still a valid row - V4 is additive.
          */
         @Test
-        @DisplayName("a newly registered lawyer has no primary city, cities or languages")
-        void newLawyerHasNoReferenceLinks() throws Exception {
+        @DisplayName("registration links the city but leaves languages empty")
+        void registrationLinksCityAndLeavesLanguagesEmpty() throws Exception {
             Lawyer lawyer = seedLawyer();
 
-            assertNull(lawyerRepository.findByIdWithPrimaryCity(lawyer.getId())
-                    .orElseThrow().getPrimaryCity());
-            assertTrue(lawyerRepository.findByIdWithPracticeCities(lawyer.getId())
-                    .orElseThrow().getPracticeCities().isEmpty());
+            // lawyerRegistration() submits "Mumbai"; the dual-write resolves it.
+            City primaryCity = lawyerRepository.findByIdWithPrimaryCity(lawyer.getId())
+                    .orElseThrow().getPrimaryCity();
+            assertNotNull(primaryCity, "registration should have linked the submitted city");
+            assertEquals("Mumbai", primaryCity.getName());
+
+            assertEquals(Set.of("Mumbai"),
+                    lawyerRepository.findByIdWithPracticeCities(lawyer.getId())
+                            .orElseThrow().getPracticeCities().stream()
+                            .map(City::getName)
+                            .collect(Collectors.toSet()),
+                    "the primary city must also be a practice city");
+
             assertTrue(lawyerRepository.findByIdWithLanguages(lawyer.getId())
-                    .orElseThrow().getLanguages().isEmpty());
+                    .orElseThrow().getLanguages().isEmpty(),
+                    "nothing collects languages yet, so this must stay empty");
         }
 
         @Test
