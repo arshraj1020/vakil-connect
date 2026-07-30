@@ -16,6 +16,17 @@ logging:
   level:
     org.springframework.security: WARN
 
+# No servlet container starts under @SpringBootTest(MOCK), so the management
+# port is never bound and the actuator endpoints are not reachable here. The
+# meters themselves are asserted directly against the MeterRegistry.
+#
+# TTL zero so the reconciliation gauges re-query on every read: a test that
+# changes the data and then reads a gauge must see the change, not a cached
+# value from five minutes of wall-clock ago.
+vakilconnect:
+  migration:
+    reconciliation-ttl: PT0S
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz

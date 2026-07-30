@@ -23,6 +23,43 @@ springdoc:
   swagger-ui:
     enabled: true
 
+# ---------------------------------------------------------------------------
+# Actuator (Phase 2G.5) - migration observability.
+#
+# ON A SEPARATE PORT, deliberately. Actuator is NOT reachable on the
+# application port at all, so the JWT chain in SecurityConfig is untouched and
+# there is no /actuator matcher to get wrong. Moving the endpoints off the
+# public listener is the control; nothing here authenticates the scraper.
+#
+# THE PORT MUST NOT BE PUBLICLY ROUTABLE. Bind it to the internal interface in
+# the deployment - MANAGEMENT_ADDRESS=127.0.0.1 for a sidecar scraper, or the
+# pod IP where Prometheus reaches it directly. Exposing 9091 to the internet
+# would publish operational counters to anyone who asks.
+#
+# Only three endpoints are enabled. `prometheus` is the one this phase needs;
+# health and info are the conventional minimum for a deployment to be operable.
+# Everything else - env, beans, heapdump, threaddump - stays off, because the
+# exposure list is the security boundary once the port is reachable.
+# ---------------------------------------------------------------------------
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9091}
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+vakilconnect:
+  migration:
+    # How long a reconciliation result is reused before the gauges re-query.
+    # The report is nine aggregates over `lawyers` and `users`; this decouples
+    # the scrape interval from the query interval. ISO-8601 duration.
+    reconciliation-ttl: ${MIGRATION_RECONCILIATION_TTL:PT5M}
+
 logging:
   level:
     org.springframework.security: DEBUG

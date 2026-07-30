@@ -67,6 +67,29 @@
 			<artifactId>spring-boot-starter-cache</artifactId>
 		</dependency>
 
+		<!--
+		     Phase 2G.5 - migration observability.
+
+		     micrometer-observation and micrometer-commons were already on the
+		     classpath transitively, but NOT micrometer-core, so there was no
+		     MeterRegistry to publish to. The actuator starter supplies it, and
+		     the Prometheus registry supplies the scrape format.
+
+		     These exist to answer one question - "has cityFallbackReads reached
+		     zero" - which gates the Phase 2H removal of the legacy column. They
+		     are load-bearing for that decision and should outlive it only if
+		     something else starts publishing meters.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>com.github.ben-manes.caffeine</groupId>
 			<artifactId>caffeine</artifactId>
