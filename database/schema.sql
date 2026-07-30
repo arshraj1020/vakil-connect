@@ -1,5 +1,24 @@
 -- ==========================================================
--- VakilConnect Database Schema
+-- ⚠️  HISTORICAL DESIGN ARTEFACT — DO NOT RUN
+-- ==========================================================
+--
+-- This file predates Flyway and NO LONGER MATCHES the live schema. It is kept
+-- only as a record of the original design.
+--
+-- The schema is owned by:
+--     backend/src/main/resources/db/migration/V1__init.sql .. V6__*.sql
+--
+-- Flyway applies those on startup and Hibernate runs with `ddl-auto: validate`,
+-- so a database built from THIS file will fail application startup with a
+-- schema-validation error. Among other differences it has no reference-data
+-- tables (V3), no reference links (V4), no seeded specializations (V5) and no
+-- backfill (V6).
+--
+-- To create a database:  createdb vakilconnect  — then start the backend and
+-- let Flyway build it. See DEPLOYMENT.md.
+--
+-- ==========================================================
+-- VakilConnect Database Schema  (original design, superseded)
 -- PostgreSQL
 -- ==========================================================
 

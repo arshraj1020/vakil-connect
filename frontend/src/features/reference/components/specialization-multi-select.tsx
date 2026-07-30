@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 
 import { MultiCombobox } from "@/components/ui/combobox";
-import { SPECIALIZATION_OPTIONS } from "@/features/auth/schemas/register-schema";
 import { useSpecializations } from "@/features/reference/hooks/use-reference-data";
 import { isApiError } from "@/types";
 
@@ -11,20 +10,20 @@ import { isApiError } from "@/types";
  * Practice areas.
  *
  * Works on NAMES, not ids, and that is deliberate: the registration and profile
- * payloads both send `specializations: string[]`, and this phase must not change
- * either. Swapping the wire format to ids is a later phase, together with the
- * backend switching from resolve-or-create to resolve-or-reject.
+ * payloads both send `specializations: string[]`, and neither may change.
+ * Swapping the wire format to ids would need a backend change.
  *
- * WHY THE CURATED LIST IS STILL MERGED IN. `GET /api/reference/specializations`
- * returns the contents of the `specializations` table, and that table is
- * populated find-or-create BY REGISTRATION. On a fresh database it is empty - so
- * a picker driven purely by the endpoint would offer a lawyer nothing to choose
- * from, and no lawyer could ever register. Until the backend seeds this
- * vocabulary the two sources are merged, which keeps the form usable and still
- * surfaces anything the server knows about that the constant does not.
+ * THE SERVER IS THE ONLY SOURCE (Frontend Phase A). This component used to merge
+ * `GET /api/reference/specializations` with a hardcoded constant, because the
+ * table was populated find-or-create by registration and was therefore empty on
+ * a fresh database - a picker driven purely by the endpoint would have offered
+ * the first lawyer nothing to choose from.
  *
- * De-duplication is case-insensitive so "Family law" from the server does not
- * appear beside "Family Law" from the constant.
+ * Phase 2E ended that: V5 seeds the curated vocabulary, so the endpoint is
+ * populated before anyone registers. Keeping the merge past that point was
+ * actively harmful, because the same phase made the backend resolve-or-REJECT -
+ * a name present only in the constant is now a 400 on save, and offering it was
+ * offering a value the server will refuse.
  */
 export function SpecializationMultiSelect({
   value,
@@ -44,13 +43,15 @@ export function SpecializationMultiSelect({
 }) {
   const { data, isPending, isError, error } = useSpecializations();
 
+  /*
+   * Still de-duplicated case-insensitively. `specializations.name` is UNIQUE in
+   * the database, but that constraint is case-SENSITIVE, so "Family law" and
+   * "Family Law" can both exist as rows and would otherwise appear as two
+   * indistinguishable options.
+   */
   const options = useMemo(() => {
     const byLower = new Map<string, string>();
 
-    // Curated list first, so its casing wins for any duplicate.
-    for (const name of SPECIALIZATION_OPTIONS) {
-      byLower.set(name.toLowerCase(), name);
-    }
     for (const specialization of data ?? []) {
       const key = specialization.name.toLowerCase();
       if (!byLower.has(key)) byLower.set(key, specialization.name);

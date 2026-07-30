@@ -34,12 +34,29 @@ export function PublicNavbar() {
       <div className="container flex h-16 items-center justify-between gap-4">
         <Logo />
 
+        {/*
+          Hidden below md, as before. The links are not lost on mobile: every
+          one of them is also reachable from the footer, which is not
+          breakpoint-gated. A mobile drawer is a Phase D concern.
+        */}
         <nav className="hidden items-center gap-6 md:flex" aria-label="Main">
           <Link
             href={ROUTES.LAWYERS}
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             Find lawyers
+          </Link>
+          <Link
+            href={ROUTES.ABOUT}
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            About
+          </Link>
+          <Link
+            href={ROUTES.PRICING}
+            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Pricing
           </Link>
         </nav>
 

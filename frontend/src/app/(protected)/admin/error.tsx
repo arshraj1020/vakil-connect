@@ -3,8 +3,8 @@
 import { SectionError } from "@/components/common/section-error";
 import { ROUTES } from "@/lib/routes";
 
-/** Route-level error boundary for the client section. See SectionError. */
-export default function ClientSectionError({
+/** Route-level error boundary for the admin section. See SectionError. */
+export default function AdminSectionError({
   error,
   reset,
 }: {
@@ -15,8 +15,8 @@ export default function ClientSectionError({
     <SectionError
       error={error}
       reset={reset}
-      scope="Client section"
-      homeHref={ROUTES.CLIENT_DASHBOARD}
+      scope="Admin section"
+      homeHref={ROUTES.ADMIN_DASHBOARD}
       homeLabel="Go to dashboard"
     />
   );

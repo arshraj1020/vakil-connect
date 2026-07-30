@@ -45,7 +45,29 @@ export function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
+          "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
+          /*
+           * PHASE E - two fixes, both only visible on small screens.
+           *
+           * `w-[calc(100%-2rem)]` replaces `w-full`. The dialog is centred with
+           * -translate-x-1/2, so `w-full` made it exactly viewport-wide: at
+           * 375px it sat flush against both edges with the rounded corners and
+           * border cut off by the screen. Below the `max-w-lg` breakpoint there
+           * is now always a 16px gutter.
+           *
+           * `max-h` + `overflow-y-auto` is the more serious one. There was no
+           * height constraint, and because the dialog is centred with
+           * -translate-y-1/2, content taller than the viewport overflowed
+           * EQUALLY IN BOTH DIRECTIONS - so the title and the close button went
+           * above the top edge, and nothing scrolled, because a `fixed` element
+           * does not extend the page. The dialog became unclosable except by
+           * Escape or an overlay click. Long content is normal here: a lawyer's
+           * biography, a client's review comment.
+           *
+           * `svh` rather than `vh` so the mobile browser's collapsing address
+           * bar cannot push the dialog taller than the visible area.
+           */
+          "w-[calc(100%-2rem)] max-w-lg max-h-[calc(100svh-2rem)] overflow-y-auto",
           "rounded-xl border border-border bg-card p-6 shadow-lg",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",

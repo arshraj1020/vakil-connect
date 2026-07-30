@@ -113,22 +113,17 @@ export const LAWYER_PROFILE_FIELDS = [
   "specializations",
 ] as const;
 
-/**
- * Practice areas offered in the picker.
+/*
+ * SPECIALIZATION_OPTIONS used to live here.
  *
- * The backend resolves specializations find-or-create by name, so this list is
- * a convenience rather than a constraint - it keeps naming consistent instead
- * of accumulating "Family law", "family Law" and "Family Law" as three rows.
+ * It was written when the backend resolved practice areas find-or-create, so a
+ * local list was a naming convenience with no authority. Two things ended that:
+ * V5 seeds the vocabulary (Phase 2E), and the same phase made resolution
+ * resolve-or-REJECT, which turned an unknown name into a 400. A constant that
+ * can disagree with the server about which values the server will accept is not
+ * a convenience.
+ *
+ * Every consumer now reads GET /api/reference/specializations - see
+ * `SpecializationMultiSelect` and `LawyerFilters`. Do not reintroduce a local
+ * copy; add the value to V5 instead.
  */
-export const SPECIALIZATION_OPTIONS = [
-  "Family Law",
-  "Criminal Law",
-  "Civil Law",
-  "Corporate Law",
-  "Property Law",
-  "Tax Law",
-  "Labour Law",
-  "Consumer Law",
-  "Cyber Law",
-  "Intellectual Property",
-] as const;

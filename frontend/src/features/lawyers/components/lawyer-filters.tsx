@@ -13,16 +13,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SPECIALIZATION_OPTIONS } from "@/features/auth/schemas/register-schema";
+import { useSpecializations } from "@/features/reference/hooks/use-reference-data";
 import type { LawyerSearchParams } from "@/types";
 
 /**
  * Search and filter controls.
  *
- * Presentational: it owns no state and issues no requests. The keyword is
- * controlled by the parent (which debounces it before writing to the URL);
- * every other control reports a change immediately, since selecting from a
- * dropdown is already a deliberate action.
+ * The keyword is controlled by the parent (which debounces it before writing to
+ * the URL); every other control reports a change immediately, since selecting
+ * from a dropdown is already a deliberate action.
+ *
+ * PRACTICE AREAS COME FROM THE SERVER (Frontend Phase A). They used to come from
+ * a hardcoded constant shared with the registration form. Filtering by a name
+ * the backend has never heard of simply returns nothing, so a drifted constant
+ * showed clients a filter that silently matched no one. The list is cached with
+ * `staleTime: Infinity`, so this costs one request per session.
+ *
+ * That makes this component no longer strictly presentational - it reads one
+ * query. The alternative was threading the list down from the page purely to
+ * preserve the label, which buys nothing.
  *
  * Radix Select cannot use an empty string as an item value, so "any" is a
  * sentinel translated back to `undefined` at the boundary.
@@ -58,6 +67,23 @@ export function LawyerFilters({
   onClear: () => void;
   hasFilters: boolean;
 }) {
+  /*
+   * A failed reference lookup must not take the search page down with it, so
+   * "Any practice area" is always present and the filter degrades to a no-op.
+   *
+   * Loading and failure are still reported rather than both collapsing into a
+   * dropdown that merely looks short. Before Phase A the options came from a
+   * constant and could not fail; now they can, and a filter that silently offers
+   * nothing is indistinguishable from a catalogue that genuinely has nothing.
+   * The placeholders are disabled, so their sentinel values can never reach
+   * `onValueChange`.
+   */
+  const {
+    data: specializations = [],
+    isPending: specializationsPending,
+    isError: specializationsFailed,
+  } = useSpecializations();
+
   const toNumber = (value: string) => (value === ANY ? undefined : Number(value));
 
   return (
@@ -99,9 +125,19 @@ export function LawyerFilters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ANY}>Any practice area</SelectItem>
-                {SPECIALIZATION_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
+                {specializationsPending && (
+                  <SelectItem value="__loading" disabled>
+                    Loading practice areas…
+                  </SelectItem>
+                )}
+                {specializationsFailed && (
+                  <SelectItem value="__unavailable" disabled>
+                    Practice areas unavailable
+                  </SelectItem>
+                )}
+                {specializations.map((option) => (
+                  <SelectItem key={option.id} value={option.name}>
+                    {option.name}
                   </SelectItem>
                 ))}
               </SelectContent>

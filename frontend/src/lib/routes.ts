@@ -10,6 +10,8 @@ import type { Role } from "@/types";
 export const ROUTES = {
   /* Public */
   HOME: "/",
+  ABOUT: "/about",
+  PRICING: "/pricing",
   LOGIN: "/login",
   REGISTER: "/register",
   LAWYERS: "/lawyers",

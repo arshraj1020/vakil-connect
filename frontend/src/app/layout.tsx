@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
+import { RouteFocusReset } from "@/components/layout/route-focus-reset";
+import { SkipToContent } from "@/components/layout/skip-to-content";
 import { Providers } from "@/providers";
 
 import "./globals.css";
@@ -36,6 +38,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans`}>
+        {/*
+          Both belong at the root so every route group inherits them. The
+          skip link must be the first focusable element in the document, so
+          it sits ahead of Providers and therefore ahead of every shell.
+        */}
+        <SkipToContent />
+        <RouteFocusReset />
         <Providers>{children}</Providers>
       </body>
     </html>

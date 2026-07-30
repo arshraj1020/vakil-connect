@@ -32,7 +32,7 @@ import { ROUTES } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { isApiError, type RegisterRequest } from "@/types";
 
-import { CityCombobox } from "@/features/reference/components/city-combobox";
+import { CityNameCombobox } from "@/features/reference/components/city-name-combobox";
 import { SpecializationMultiSelect } from "@/features/reference/components/specialization-multi-select";
 
 const ROLE_OPTIONS = [
@@ -354,34 +354,25 @@ export function RegisterForm() {
                       control={control}
                       name="lawyerProfile.city"
                       render={({ field: controlled }) => (
-                        <CityCombobox
+                        /*
+                         * The form field holds the city NAME, exactly as before -
+                         * the submitted payload is unchanged and the schema still
+                         * validates a non-empty string. Only the control changed:
+                         * a picker instead of free text, so "Mumbi" can no longer
+                         * be typed and silently make the lawyer unfindable.
+                         *
+                         * The name/object reconciliation moved into
+                         * CityNameCombobox in Frontend Phase A, when the lawyer
+                         * profile form needed the identical adapter. It was
+                         * inline here; a second copy would have been the
+                         * duplication this codebase avoids.
+                         */
+                        <CityNameCombobox
                           id={field.id}
                           aria-invalid={field["aria-invalid"]}
                           aria-describedby={field["aria-describedby"]}
-                          /*
-                           * The form field holds the city NAME, exactly as
-                           * before - the submitted payload is unchanged and the
-                           * schema still validates a non-empty string. Only the
-                           * control changed: a picker instead of free text, so
-                           * "Mumbi" can no longer be typed and silently make the
-                           * lawyer unfindable.
-                           *
-                           * The selected object is reconstructed from the name
-                           * for display. Carrying the id through form state
-                           * would change the payload, which is out of scope.
-                           */
-                          value={
-                            controlled.value
-                              ? {
-                                  id: controlled.value,
-                                  name: controlled.value,
-                                  stateId: "",
-                                  stateCode: "",
-                                  stateName: "",
-                                }
-                              : null
-                          }
-                          onChange={(city) => controlled.onChange(city?.name ?? "")}
+                          value={controlled.value}
+                          onChange={controlled.onChange}
                         />
                       )}
                     />
