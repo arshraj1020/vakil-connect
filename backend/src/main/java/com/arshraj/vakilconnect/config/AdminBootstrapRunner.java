@@ -68,7 +68,10 @@ public class AdminBootstrapRunner implements ApplicationRunner {
         admin.setPhoneNumber(isBlank(adminPhoneNumber) ? null : adminPhoneNumber.trim());
         admin.setRole(Role.ADMIN);
         admin.setActive(true);
-        admin.setEnabled(true);
+
+        // The bootstrap admin has no mailbox to verify from - this account is the
+        // only way into the system, so it is created already verified.
+        admin.setEmailVerified(true);
 
         userRepository.save(admin);
 

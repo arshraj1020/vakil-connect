@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @Transactional
@@ -43,10 +44,31 @@ public class AuthServiceImpl implements AuthService {
         this.lawyerService = lawyerService;
     }
 
+    /**
+     * The single normalisation rule for an email address entering this service.
+     *
+     * `User.setEmail` applies the same rule on write, so the database only ever
+     * holds trimmed lowercase. Every lookup therefore has to normalise too, or
+     * it silently fails to match a row that is plainly there - which is exactly
+     * the defect this method was extracted to fix (see `login`).
+     *
+     * Kept null-safe to mirror `User.setEmail`. In practice `@NotBlank` on the
+     * DTOs means null never reaches here, but a normaliser that NPEs on null is
+     * a trap for the next caller.
+     *
+     * Locale.ROOT for the same reason as `User.setEmail`: the no-arg
+     * toLowerCase() would use the JVM default locale, and Turkish lowercases 'I'
+     * to the dotless 'ı'. The write rule and this read rule must produce
+     * byte-identical output on every host, so both pin the locale.
+     */
+    private static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
     @Override
     public RegisterResponse register(RegisterRequest request) {
 
-        String email = request.getEmail().trim().toLowerCase();
+        String email = normalizeEmail(request.getEmail());
 
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateResourceException("Email already exists.");
@@ -128,14 +150,34 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse login(LoginRequest request) {
 
+        /*
+         * Normalise ONCE, then use the same value for both steps.
+         *
+         * This previously passed the raw request value to authenticate() while
+         * normalising only for findByEmail. Because User.setEmail lowercases on
+         * write, the database holds lowercase exclusively, so
+         * DaoAuthenticationProvider -> loadUserByUsername -> findByEmail(raw)
+         * found nothing and anyone who typed "Foo@Bar.com" was rejected with a
+         * 401 for a password that was correct. The normalised lookup below was
+         * never reached, which is why the bug was invisible in this method.
+         *
+         * Normalising here rather than in CustomUserDetailsService is deliberate:
+         * login is the only place an untrusted, arbitrarily-cased address enters
+         * the system. Every other caller of loadUserByUsername passes a JWT
+         * subject, which is User.getEmail() and therefore already normalised.
+         * Normalising in the lookup as well would hide a future caller that
+         * forgot to, instead of failing loudly.
+         */
+        String email = normalizeEmail(request.getEmail());
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
+                        email,
                         request.getPassword()
                 )
         );
 
-        User user = userRepository.findByEmail(request.getEmail().trim().toLowerCase())
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found."));
 
         String token = jwtService.generateToken(user.getEmail());

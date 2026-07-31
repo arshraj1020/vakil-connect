@@ -67,6 +67,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                  *
                  * The current value is already loaded on every request, so this
                  * makes deactivation take effect on the very next call.
+                 *
+                 * READ THE RECEIVER CAREFULLY. This is Spring Security's
+                 * UserDetails.isEnabled(), which here means `users.active` -
+                 * admin deactivation. It is NOT email verification. The entity
+                 * field for that is User.isEmailVerified(), and it is checked in
+                 * AuthServiceImpl.login(), not here: a token can only exist if
+                 * login already issued one, so re-checking verification on every
+                 * request would buy nothing.
                  */
                 if (jwtService.isTokenValid(token, userDetails.getUsername())
                         && userDetails.isEnabled()) {

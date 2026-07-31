@@ -192,7 +192,7 @@ public abstract class AbstractIntegrationTest {
         admin.setPhoneNumber("9876543212");
         admin.setRole(Role.ADMIN);
         admin.setActive(true);
-        admin.setEnabled(true);
+        admin.setEmailVerified(true);
         userRepositoryForSupport.save(admin);
 
         return login(email, DEFAULT_PASSWORD);

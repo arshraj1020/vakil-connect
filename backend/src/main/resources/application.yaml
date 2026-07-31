@@ -60,6 +60,45 @@ vakilconnect:
     # the scrape interval from the query interval. ISO-8601 duration.
     reconciliation-ttl: ${MIGRATION_RECONCILIATION_TTL:PT5M}
 
+  # -------------------------------------------------------------------------
+  # Identity - email verification and password reset (V7).
+  #
+  # THIS BLOCK IS THE SINGLE SOURCE OF DEFAULTS. IdentityProperties binds it and
+  # declares no @DefaultValue, so a key removed from here becomes a startup
+  # failure naming the property rather than a null discovered later at the point
+  # of use. Durations are ISO-8601.
+  #
+  # Nothing reads these yet; the schema and the configuration surface land
+  # together so that later phases are pure Java.
+  # -------------------------------------------------------------------------
+  identity:
+    # HMAC key for hashing tokens at rest. Empty is tolerated only while nothing
+    # hashes anything; it becomes required, with no default, in the phase that
+    # introduces the hasher.
+    token-pepper: ${TOKEN_PEPPER:}
+
+    # FRONTEND origin, not the API. Verification and reset links point at
+    # Next.js pages, which then POST to the backend.
+    public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
+
+    # The login gate. Ships false so email delivery can be proven in production
+    # before anything is gated on it; flipping it needs no deploy.
+    verification-enforced: ${EMAIL_VERIFICATION_ENFORCED:false}
+
+    verification-token-ttl: ${VERIFICATION_TOKEN_TTL:PT24H}
+    reset-token-ttl: ${RESET_TOKEN_TTL:PT30M}
+    resend-cooldown: ${RESEND_COOLDOWN:PT60S}
+
+    # How long an unverified account is protected before a re-registration may
+    # claim its email address. Deliberately much longer than the token TTL.
+    takeover-threshold: ${TAKEOVER_THRESHOLD:P7D}
+
+    # The purge is @Scheduled and would run on every replica. Leave it enabled
+    # on exactly one instance until there is a leader election.
+    purge-enabled: ${IDENTITY_PURGE_ENABLED:true}
+    token-purge-retention: ${TOKEN_PURGE_RETENTION:P30D}
+    unverified-purge-after: ${UNVERIFIED_PURGE_AFTER:P30D}
+
 logging:
   level:
     org.springframework.security: DEBUG
