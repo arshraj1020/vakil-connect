@@ -17,11 +17,15 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+# Springdoc's own kill switches, environment-overridable. Default true so the
+# local developer experience is unchanged; application-prod.yaml turns BOTH off.
+# The two keys are independent in springdoc (spec endpoint vs UI), so both must
+# be set — disabling only the UI still serves the full machine-readable spec.
 springdoc:
   api-docs:
-    enabled: true
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
   swagger-ui:
-    enabled: true
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
 
 # ---------------------------------------------------------------------------
 # Actuator (Phase 2G.5) - migration observability.
