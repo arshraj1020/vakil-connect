@@ -1,22 +1,13 @@
-# ============================================================================
-# Production profile.  Activate with:  SPRING_PROFILES_ACTIVE=prod
-#
-# Only overrides live here; everything else inherits from application.yaml.
-# One audit finding per commit — this file grows as hardening items land.
-# ============================================================================
+spring:
+  jpa:
+    show-sql: false
 
-# Audit C1: the API must not document itself to the public. Both switches are
-# needed: api-docs is the machine-readable spec (the valuable artefact for an
-# attacker), swagger-ui is the console on top of it. With both false, springdoc
-# registers no handlers and /v3/api-docs/** and /swagger-ui/** are plain 404s.
-#
-# The permitAll matchers for these paths remain in SecurityConfig. That is
-# deliberate for this phase: with no handler bound, an authorization exemption
-# on an unmapped path answers 404 to everyone and exposes nothing. The matchers
-# become a real exposure only if something else ever binds those paths - which
-# nothing in this codebase does.
 springdoc:
   api-docs:
     enabled: false
   swagger-ui:
     enabled: false
+
+logging:
+  level:
+    org.springframework.security: INFO

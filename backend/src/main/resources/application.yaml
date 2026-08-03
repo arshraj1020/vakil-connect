@@ -10,95 +10,50 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     open-in-view: false
 
   flyway:
     enabled: true
     locations: classpath:db/migration
 
-# Springdoc's own kill switches, environment-overridable. Default true so the
-# local developer experience is unchanged; application-prod.yaml turns BOTH off.
-# The two keys are independent in springdoc (spec endpoint vs UI), so both must
-# be set — disabling only the UI still serves the full machine-readable spec.
 springdoc:
   api-docs:
     enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
   swagger-ui:
     enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
 
-# ---------------------------------------------------------------------------
-# Actuator (Phase 2G.5) - migration observability.
-#
-# ON A SEPARATE PORT, deliberately. Actuator is NOT reachable on the
-# application port at all, so the JWT chain in SecurityConfig is untouched and
-# there is no /actuator matcher to get wrong. Moving the endpoints off the
-# public listener is the control; nothing here authenticates the scraper.
-#
-# THE PORT MUST NOT BE PUBLICLY ROUTABLE. Bind it to the internal interface in
-# the deployment - MANAGEMENT_ADDRESS=127.0.0.1 for a sidecar scraper, or the
-# pod IP where Prometheus reaches it directly. Exposing 9091 to the internet
-# would publish operational counters to anyone who asks.
-#
-# Only three endpoints are enabled. `prometheus` is the one this phase needs;
-# health and info are the conventional minimum for a deployment to be operable.
-# Everything else - env, beans, heapdump, threaddump - stays off, because the
-# exposure list is the security boundary once the port is reachable.
-# ---------------------------------------------------------------------------
 management:
   server:
     port: ${MANAGEMENT_PORT:9091}
     address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+
   endpoints:
     web:
       exposure:
         include: health,info,prometheus
+
   endpoint:
     health:
       show-details: never
 
 vakilconnect:
   migration:
-    # How long a reconciliation result is reused before the gauges re-query.
-    # The report is nine aggregates over `lawyers` and `users`; this decouples
-    # the scrape interval from the query interval. ISO-8601 duration.
     reconciliation-ttl: ${MIGRATION_RECONCILIATION_TTL:PT5M}
 
-  # -------------------------------------------------------------------------
-  # Identity - email verification and password reset (V7).
-  #
-  # THIS BLOCK IS THE SINGLE SOURCE OF DEFAULTS. IdentityProperties binds it and
-  # declares no @DefaultValue, so a key removed from here becomes a startup
-  # failure naming the property rather than a null discovered later at the point
-  # of use. Durations are ISO-8601.
-  #
-  # Nothing reads these yet; the schema and the configuration surface land
-  # together so that later phases are pure Java.
-  # -------------------------------------------------------------------------
   identity:
-    # HMAC key for hashing tokens at rest. Empty is tolerated only while nothing
-    # hashes anything; it becomes required, with no default, in the phase that
-    # introduces the hasher.
     token-pepper: ${TOKEN_PEPPER:}
 
-    # FRONTEND origin, not the API. Verification and reset links point at
-    # Next.js pages, which then POST to the backend.
     public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
 
-    # The login gate. Ships false so email delivery can be proven in production
-    # before anything is gated on it; flipping it needs no deploy.
     verification-enforced: ${EMAIL_VERIFICATION_ENFORCED:false}
 
     verification-token-ttl: ${VERIFICATION_TOKEN_TTL:PT24H}
     reset-token-ttl: ${RESET_TOKEN_TTL:PT30M}
     resend-cooldown: ${RESEND_COOLDOWN:PT60S}
 
-    # How long an unverified account is protected before a re-registration may
-    # claim its email address. Deliberately much longer than the token TTL.
     takeover-threshold: ${TAKEOVER_THRESHOLD:P7D}
 
-    # The purge is @Scheduled and would run on every replica. Leave it enabled
-    # on exactly one instance until there is a leader election.
     purge-enabled: ${IDENTITY_PURGE_ENABLED:true}
     token-purge-retention: ${TOKEN_PURGE_RETENTION:P30D}
     unverified-purge-after: ${UNVERIFIED_PURGE_AFTER:P30D}
@@ -107,9 +62,6 @@ logging:
   level:
     org.springframework.security: DEBUG
 
-# JWT_SECRET is intentionally NOT defaulted: the app must fail to start if it
-# is missing, so a known/committed secret can never be used by accident.
-# Generate one with:  openssl rand -base64 32
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}
