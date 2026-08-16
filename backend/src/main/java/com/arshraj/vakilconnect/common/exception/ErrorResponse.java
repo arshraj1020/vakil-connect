@@ -1,5 +1,7 @@
 package com.arshraj.vakilconnect.common.exception;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -14,6 +16,21 @@ public class ErrorResponse {
     private String message;
     private String path;
     private Map<String, String> fieldErrors;
+
+    /**
+     * Machine-readable failure code, so the frontend can branch on an identifier
+     * instead of pattern-matching an English sentence that copy edits will break.
+     *
+     * NON_NULL IS LOAD-BEARING, NOT TIDINESS. Jackson serialises nulls by
+     * default, so without this annotation every error body already in production
+     * would gain `"code": null` - a contract change for handlers that were not
+     * touched. The annotation is on THIS FIELD ONLY and deliberately not on the
+     * class: at class level it would also drop the existing `"fieldErrors": null`
+     * that current responses carry, which is the same breakage in the other
+     * direction.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String code;
 
     public ErrorResponse() {
     }
@@ -72,5 +89,13 @@ public class ErrorResponse {
 
     public void setFieldErrors(Map<String, String> fieldErrors) {
         this.fieldErrors = fieldErrors;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
     }
 }

@@ -27,6 +27,17 @@ vakilconnect:
   migration:
     reconciliation-ttl: PT0S
 
+  identity:
+    # REQUIRED for the context to start: IdentityProperties.tokenPepper is
+    # @NotBlank, and application.yaml resolves it from ${TOKEN_PEPPER:} which is
+    # empty on a developer machine. Without this line EVERY integration test
+    # fails at context load, not at the assertion.
+    #
+    # A fixed, obviously-fake value: hashes must be reproducible across runs for
+    # TokenHasher's determinism assertions, and this must never resemble a real
+    # secret that could be copied into an environment file.
+    token-pepper: test-only-pepper-not-a-real-secret
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz

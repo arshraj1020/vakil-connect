@@ -1,6 +1,9 @@
 package com.arshraj.vakilconnect.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -21,6 +24,8 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(
@@ -99,22 +104,103 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
+    /* ------------------------------------------------- identity tokens (P2) --
+     *
+     * Three distinct codes rather than one generic failure, because the
+     * frontend has to do three different things: retry, offer a fresh link, or
+     * treat the attempt as already-succeeded. Each message is fixed at the
+     * exception, never assembled from caller input.
+     */
+
+    @ExceptionHandler(TokenInvalidException.class)
+    public ResponseEntity<ErrorResponse> handleTokenInvalid(
+            TokenInvalidException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request,
+                TokenInvalidException.CODE);
+    }
+
+    @ExceptionHandler(TokenExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleTokenExpired(
+            TokenExpiredException ex, HttpServletRequest request) {
+        // 410 Gone: the resource existed and no longer does. More useful to a
+        // client than a bare 400, and it costs no secrecy the holder lacks.
+        return build(HttpStatus.GONE, ex.getMessage(), request,
+                TokenExpiredException.CODE);
+    }
+
+    @ExceptionHandler(TokenAlreadyUsedException.class)
+    public ResponseEntity<ErrorResponse> handleTokenAlreadyUsed(
+            TokenAlreadyUsedException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request,
+                TokenAlreadyUsedException.CODE);
+    }
+
+    /**
+     * A database constraint rejected the write.
+     *
+     * THIS IS THE K1 DECISION. A concurrent second token issue is stopped by the
+     * partial unique index `uq_email_tokens_live`, and the resulting violation
+     * is NOT caught in the service: catching it there would leave the
+     * transaction aborted, so every following statement would fail with
+     * "current transaction is aborted". Letting it propagate to this handler
+     * keeps the database as the final authority on concurrent inserts and keeps
+     * the service free of transaction-state bookkeeping.
+     *
+     * 409, not 500: the request conflicted with existing state, which is the
+     * caller's situation rather than a server fault. Note this also upgrades any
+     * previously-uncaught violation elsewhere in the application from a 500 to a
+     * 409 - a strictly more accurate answer.
+     *
+     * Logged at WARN with the URI but WITHOUT the exception message in the
+     * response: constraint and column names are internal schema detail.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+
+        log.warn("Data integrity violation at {}", request.getRequestURI(), ex);
+
+        return build(HttpStatus.CONFLICT,
+                "This request conflicts with existing data.", request,
+                "RESOURCE_CONFLICT");
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(
             RuntimeException ex, HttpServletRequest request) {
-        // Fallback. Do not leak internal details to the client.
+
+        /*
+         * Log it. This handler CONSUMES the exception, so Spring never logs it
+         * either - without this line every unexpected production failure would
+         * be invisible: no stack trace, no class name, anywhere.
+         */
+        log.error("Unhandled exception at {}", request.getRequestURI(), ex);
+
+        // Do not leak internal details to the client.
         return build(HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred", request);
     }
 
     private ResponseEntity<ErrorResponse> build(
             HttpStatus status, String message, HttpServletRequest request) {
+        return build(status, message, request, null);
+    }
+
+    /**
+     * A null {@code code} is omitted from the JSON entirely (see
+     * ErrorResponse), so every handler that does not supply one produces a body
+     * byte-identical to the one it produced before this field existed.
+     */
+    private ResponseEntity<ErrorResponse> build(
+            HttpStatus status, String message, HttpServletRequest request, String code) {
 
         ErrorResponse body = new ErrorResponse(
                 status.value(),
                 status.getReasonPhrase(),
                 message,
                 request.getRequestURI());
+
+        body.setCode(code);
 
         return ResponseEntity.status(status).body(body);
     }

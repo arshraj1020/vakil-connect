@@ -39,14 +39,21 @@ import java.time.Duration;
 public record IdentityProperties(
 
         /*
-         * HMAC key for token hashing. Deliberately NOT @NotBlank in this phase:
-         * nothing hashes anything yet, and making it required now would stop
-         * every developer's application from starting for a feature that does
-         * not exist. It becomes fail-fast in the phase that introduces the
-         * hasher.
+         * HMAC key for token hashing, applied by TokenHasher before a token is
+         * stored so that a leaked database dump alone yields nothing usable.
+         *
+         * NOW REQUIRED. TokenHasher exists, so an empty pepper would mean
+         * hashing under a known-empty key - worse than not hashing, because it
+         * looks protected. The application refuses to start instead, matching
+         * the JWT_SECRET posture.
+         *
+         * TOKEN_PEPPER must be present in every environment BEFORE this code is
+         * deployed. It was set on Render ahead of this change for exactly that
+         * reason; the test profile supplies its own in application-test.yaml.
          *
          * Rotating it invalidates every outstanding verification and reset link.
          */
+        @NotBlank
         String tokenPepper,
 
         /*
