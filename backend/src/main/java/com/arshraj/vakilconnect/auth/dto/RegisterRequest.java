@@ -16,8 +16,13 @@ public class RegisterRequest {
     @Email(message = "Invalid email format")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters")
+    /*
+     * Constraints come from PasswordRules so registration and password reset
+     * cannot drift apart. Values are unchanged - min 8, same messages - so this
+     * is a refactor, not a behaviour change.
+     */
+    @NotBlank(message = PasswordRules.REQUIRED_MESSAGE)
+    @Size(min = PasswordRules.MIN_LENGTH, message = PasswordRules.LENGTH_MESSAGE)
     private String password;
 
     @Pattern(

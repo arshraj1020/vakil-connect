@@ -82,6 +82,19 @@ public class SecurityConfig {
                                 "/api/auth/verify-email",
                                 "/api/auth/resend-verification",
 
+                                /*
+                                 * Password reset (Phase 6). Public for the same
+                                 * structural reason: somebody who has forgotten
+                                 * their password cannot authenticate in order
+                                 * to ask for a new one.
+                                 *
+                                 * Authority comes from possession of a
+                                 * single-use, expiring token delivered to the
+                                 * account's own mailbox - not from the session.
+                                 */
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
