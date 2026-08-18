@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { applyServerFieldErrors } from "@/features/auth/lib/apply-server-errors";
+import { isEmailNotVerified } from "@/features/auth/lib/identity-errors";
 import {
   loginSchema,
   type LoginFormValues,
@@ -30,6 +32,8 @@ import {
   SESSION_EXPIRED_VALUE,
 } from "@/lib/constants";
 import { ROUTES, safeRedirect } from "@/lib/routes";
+
+import { ResendVerificationForm } from "./resend-verification-form";
 import { isApiError } from "@/types";
 
 /**
@@ -52,10 +56,18 @@ export function LoginForm() {
     searchParams.get(SESSION_EXPIRED_PARAM) === SESSION_EXPIRED_VALUE;
   const justRegistered = searchParams.get("registered") === "1";
 
+  /*
+   * Set when the backend answers 403 EMAIL_NOT_VERIFIED. Holds the address the
+   * user just typed so the resend panel can prefill it - they should not have
+   * to type it again to fix a problem they did not cause.
+   */
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
     setError,
+    getValues,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -86,6 +98,17 @@ export function LoginForm() {
       const placedOnField = applyServerFieldErrors(error, setError);
       if (placedOnField) return;
 
+      /*
+       * EMAIL_NOT_VERIFIED is a 403, not a 401: the password was CORRECT.
+       * Showing "incorrect email or password" here would send the user off to
+       * reset a password that works perfectly well. Surfacing the resend panel
+       * instead puts the only useful action in front of them.
+       */
+      if (isEmailNotVerified(error)) {
+        setUnverifiedEmail(getValues("email"));
+        return;
+      }
+
       toast.error(
         isApiError(error) && error.status === 401
           ? "Incorrect email or password."
@@ -106,7 +129,27 @@ export function LoginForm() {
       </CardHeader>
 
       <CardContent>
-        {sessionExpired ? (
+        {unverifiedEmail ? (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Verify your email to continue</p>
+              <p className="text-sm text-muted-foreground">
+                Your password was correct, but this address has not been
+                confirmed yet. Open the link we emailed you, or send a new one.
+              </p>
+            </div>
+            <ResendVerificationForm defaultEmail={unverifiedEmail} />
+            <button
+              type="button"
+              onClick={() => setUnverifiedEmail(null)}
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Back to sign in
+            </button>
+          </div>
+        ) : (
+          <>
+            {sessionExpired ? (
           <p
             role="status"
             className="mb-5 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning"
@@ -161,22 +204,13 @@ export function LoginForm() {
             backend change (longer expiry, or refresh tokens), not a UI change.
           */}
           <div className="flex items-center justify-end gap-3">
-            {/*
-              Placeholder: the backend has no password-reset endpoint in v1, so
-              this intentionally leads nowhere rather than to a broken flow.
-            */}
-            <button
-              type="button"
-              onClick={() =>
-                toast.info("Password reset is coming soon.", {
-                  description:
-                    "Contact support if you need help accessing your account.",
-                })
-              }
+            {/* Phase 7: the backend reset flow exists, so this is a real link. */}
+            <Link
+              href={ROUTES.FORGOT_PASSWORD}
               className="text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
               Forgot password?
-            </button>
+            </Link>
           </div>
 
           <SubmitButton
@@ -197,6 +231,8 @@ export function LoginForm() {
             Create an account
           </Link>
         </p>
+          </>
+        )}
       </CardContent>
     </Card>
   );

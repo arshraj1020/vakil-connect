@@ -14,6 +14,11 @@ export const ROUTES = {
   PRICING: "/pricing",
   LOGIN: "/login",
   REGISTER: "/register",
+  /* Identity (Phase 7). Public: a user who cannot sign in must still reach
+     these, and the emailed links point straight at them. */
+  VERIFY_EMAIL: "/verify-email",
+  FORGOT_PASSWORD: "/forgot-password",
+  RESET_PASSWORD: "/reset-password",
   LAWYERS: "/lawyers",
   lawyerDetail: (id: string) => `/lawyers/${id}` as const,
 

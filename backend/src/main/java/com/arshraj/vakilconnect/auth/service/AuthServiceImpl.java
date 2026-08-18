@@ -6,6 +6,7 @@ import com.arshraj.vakilconnect.auth.dto.RegisterRequest;
 import com.arshraj.vakilconnect.auth.dto.RegisterResponse;
 import com.arshraj.vakilconnect.appointment.repository.AppointmentRepository;
 import com.arshraj.vakilconnect.common.exception.DuplicateResourceException;
+import com.arshraj.vakilconnect.common.exception.EmailNotVerifiedException;
 import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.identity.config.IdentityProperties;
 import com.arshraj.vakilconnect.identity.entity.EmailTokenType;
@@ -324,6 +325,43 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        /*
+         * EMAIL VERIFICATION GATE (Phase 7).
+         *
+         * ORDER MATTERS: this runs AFTER authenticate() has already verified
+         * the password. Checking first would let an unauthenticated prober
+         * discover which addresses have unverified accounts without knowing any
+         * password - the check would become an enumeration oracle in its own
+         * right. By the time we reach here the caller has proved they own the
+         * credentials, so telling them their own account needs verifying
+         * discloses nothing they did not already know.
+         *
+         * DELIBERATELY NOT IN JwtAuthenticationFilter. That filter answers "is
+         * this token still good?"; this answers "may this account obtain a
+         * token at all?". Two different questions. Putting verification in the
+         * filter would also re-check it on every request for a token that could
+         * only exist because login already allowed it.
+         *
+         * DELIBERATELY NOT IN CustomUserDetailsService.disabled(). That flag is
+         * `users.active` - admin deactivation - and conflating the two would
+         * collapse "an admin disabled you" and "click the link we emailed you"
+         * into one indistinguishable DisabledException, leaving the frontend
+         * unable to decide between a support link and a resend button.
+         *
+         * GRANDFATHERED USERS ARE UNAFFECTED. V7 backfilled every pre-existing
+         * account to is_email_verified = true, so the gate only ever sees
+         * accounts created after that migration. Admins are created verified by
+         * AdminBootstrapRunner, and a password reset sets the flag too - so no
+         * role is structurally locked out.
+         *
+         * Flag-gated so it can be switched off in seconds without a deploy if
+         * email delivery degrades.
+         */
+        if (identityProperties.verificationEnforced() && !user.isEmailVerified()) {
+            log.info("Login refused for unverified account {}", user.getId());
+            throw new EmailNotVerifiedException();
+        }
 
         /*
          * The token is bound to the credential state it is minted under, so a

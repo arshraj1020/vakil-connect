@@ -101,6 +101,9 @@ function toApiError(error: unknown): ApiError {
         data.message || fallbackMessage(status),
         data.fieldErrors ?? null,
         data.path ?? null,
+        // Absent on most failures - the backend omits the key rather than
+        // sending null - so normalise to null for a single check downstream.
+        data.code ?? null,
       );
     }
 

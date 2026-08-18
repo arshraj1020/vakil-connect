@@ -70,7 +70,30 @@ export interface ApiErrorResponse {
    * to message. Maps directly onto React Hook Form's `setError`.
    */
   fieldErrors: Record<string, string> | null;
+  /**
+   * Machine-readable failure code, present only on the failures that carry one
+   * (`EMAIL_NOT_VERIFIED`, `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`,
+   * `TOKEN_INVALID`, `COOLDOWN_ACTIVE`, `RESOURCE_CONFLICT`).
+   *
+   * The backend omits the key entirely when there is no code, so this is
+   * optional rather than nullable. Branch on THIS, never on `message` - the
+   * message is English prose that a copy edit is free to change.
+   */
+  code?: string;
 }
+
+/** Codes the UI branches on. Mirrors the backend's exception constants. */
+export const API_ERROR_CODE = {
+  EMAIL_NOT_VERIFIED: "EMAIL_NOT_VERIFIED",
+  TOKEN_INVALID: "TOKEN_INVALID",
+  TOKEN_EXPIRED: "TOKEN_EXPIRED",
+  TOKEN_ALREADY_USED: "TOKEN_ALREADY_USED",
+  COOLDOWN_ACTIVE: "COOLDOWN_ACTIVE",
+  RESOURCE_CONFLICT: "RESOURCE_CONFLICT",
+} as const;
+
+export type ApiErrorCode =
+  (typeof API_ERROR_CODE)[keyof typeof API_ERROR_CODE];
 
 /**
  * Normalised error thrown by the Axios layer.
@@ -86,18 +109,30 @@ export class ApiError extends Error {
   readonly status: number;
   readonly fieldErrors: Readonly<Record<string, string>> | null;
   readonly path: string | null;
+  /**
+   * Machine-readable code when the backend supplied one, else null.
+   *
+   * ALWAYS BRANCH ON THIS, NEVER ON `message`. The message is user-facing prose
+   * and a copy edit must not be able to change control flow.
+   *
+   * Appended last in the constructor so every existing `new ApiError(...)` call
+   * keeps working unchanged.
+   */
+  readonly code: string | null;
 
   constructor(
     status: number,
     message: string,
     fieldErrors: Record<string, string> | null = null,
     path: string | null = null,
+    code: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.fieldErrors = fieldErrors ? Object.freeze({ ...fieldErrors }) : null;
     this.path = path;
+    this.code = code;
 
     // Must precede freeze(): restores the prototype chain so `instanceof`
     // works when targeting ES5-era output.

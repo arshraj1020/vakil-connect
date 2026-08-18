@@ -137,6 +137,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Login refused because the address is unverified (Phase 7 gate).
+     *
+     * 403, not 401: the password WAS correct. A 401 would push the user toward
+     * resetting a password that works, instead of toward the verification email
+     * already sitting in their inbox. The machine-readable code is what lets the
+     * frontend offer a resend button rather than a generic failure.
+     */
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailNotVerified(
+            EmailNotVerifiedException ex, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), request,
+                EmailNotVerifiedException.CODE);
+    }
+
+    /**
      * A verification email was requested again too soon.
      *
      * 429 with `Retry-After` in seconds, so a client can render a countdown
