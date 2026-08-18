@@ -1,10 +1,15 @@
 package com.arshraj.vakilconnect.auth.controller;
 
+import com.arshraj.vakilconnect.auth.dto.AcknowledgementResponse;
 import com.arshraj.vakilconnect.auth.dto.LoginRequest;
 import com.arshraj.vakilconnect.auth.dto.LoginResponse;
 import com.arshraj.vakilconnect.auth.dto.RegisterRequest;
 import com.arshraj.vakilconnect.auth.dto.RegisterResponse;
+import com.arshraj.vakilconnect.auth.dto.ResendVerificationRequest;
+import com.arshraj.vakilconnect.auth.dto.VerificationResponse;
+import com.arshraj.vakilconnect.auth.dto.VerifyEmailRequest;
 import com.arshraj.vakilconnect.auth.service.AuthService;
+import com.arshraj.vakilconnect.identity.service.EmailVerificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,9 +20,12 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService,
+                          EmailVerificationService emailVerificationService) {
         this.authService = authService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @PostMapping("/register")
@@ -38,5 +46,61 @@ public class AuthController {
         LoginResponse response = authService.login(request);
 
         return ResponseEntity.ok(response);
+    }
+
+    /* ------------------------------------------------ email verification (P4) --
+     *
+     * Both endpoints are PUBLIC by necessity: a user who cannot log in yet must
+     * still be able to verify, and one who never received the email must be
+     * able to ask again. Neither reads the SecurityContext.
+     */
+
+    /**
+     * POST, never GET.
+     *
+     * The email links to a frontend page which then calls this. A mutating GET
+     * would be fetched by mail scanners and link prefetchers before the human
+     * clicked, consuming the single-use token and leaving the user with an
+     * "invalid link".
+     *
+     * Failures are typed exceptions from the Phase 2 token core, already mapped
+     * by GlobalExceptionHandler: 400 TOKEN_INVALID, 410 TOKEN_EXPIRED,
+     * 409 TOKEN_ALREADY_USED.
+     */
+    @PostMapping("/verify-email")
+    public ResponseEntity<VerificationResponse> verifyEmail(
+            @Valid @RequestBody VerifyEmailRequest request) {
+
+        emailVerificationService.verify(request.getToken());
+
+        return ResponseEntity.ok(new VerificationResponse(
+                true, "Your email has been verified. You can now sign in."));
+    }
+
+    /**
+     * 202 ACCEPTED, ALWAYS, WITH AN IDENTICAL BODY.
+     *
+     * Unknown address, already-verified account and deactivated account all
+     * produce this exact response. The service returns void precisely so that
+     * no branch here can accidentally report which case occurred - that would
+     * turn this into an account-enumeration oracle that also sends mail.
+     *
+     * 202 rather than 200 is honest: the email has been queued for dispatch
+     * after commit, not delivered.
+     *
+     * The one exception is CooldownActiveException (429), which is reachable
+     * only for an existing unverified account and is therefore a deliberate,
+     * documented narrow leak.
+     */
+    @PostMapping("/resend-verification")
+    public ResponseEntity<AcknowledgementResponse> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request) {
+
+        emailVerificationService.resend(request.getEmail());
+
+        return ResponseEntity
+                .status(HttpStatus.ACCEPTED)
+                .body(new AcknowledgementResponse(
+                        "If that address needs verification, we have sent a new link."));
     }
 }

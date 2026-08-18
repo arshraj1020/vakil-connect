@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.client.RestClient;
 
@@ -30,7 +30,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("Email sender selection")
 class EmailSenderSelectionTest {
 
-    @Configuration
+    /**
+     * @TestConfiguration so component scanning cannot pull it into the real
+     * @SpringBootTest contexts. See the note on ResendEmailSenderTest.TestConfig:
+     * a plain @Configuration in a scanned test package leaks its beans into
+     * every integration test in the suite.
+     *
+     * ApplicationContextRunner.withUserConfiguration() registers it explicitly,
+     * so the annotation change costs these tests nothing.
+     */
+    @TestConfiguration
     @EnableConfigurationProperties(EmailProperties.class)
     static class BaseConfig {
 
@@ -65,7 +74,12 @@ class EmailSenderSelectionTest {
                 .withUserConfiguration(BaseConfig.class, SenderConfig.class);
     }
 
-    @Configuration
+    /**
+     * @TestConfiguration for the same reason as BaseConfig - and here it matters
+     * most: this class imports ResendEmailSender, so leaking it into a scanned
+     * context would try to build the real Resend adapter with no API key.
+     */
+    @TestConfiguration
     @Import({ ConsoleEmailSender.class, ResendEmailSender.class })
     static class SenderConfig {
     }

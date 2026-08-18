@@ -7,9 +7,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.retry.annotation.EnableRetry;
@@ -84,7 +84,26 @@ class ResendEmailSenderTest {
      */
     private static RestClient.Builder builderHolder;
 
-    @Configuration
+    /**
+     * @TestConfiguration, NOT @Configuration - and the difference is load-bearing.
+     *
+     * This class lives in `com.arshraj.vakilconnect.email` in TEST sources, and
+     * @SpringBootApplication's component scan covers that package with
+     * test-classes on the same classpath. A plain @Configuration here is
+     * therefore scanned into EVERY @SpringBootTest context in the suite, where
+     * it would register a second EmailProperties bean (provider=resend, fake
+     * key) and an UNCONDITIONAL ResendEmailSender - whose fail-fast constructor
+     * then aborts context startup for unrelated integration tests.
+     *
+     * @TestConfiguration is excluded from component scanning by Boot's
+     * TypeExcludeFilter, so it is only used where it is asked for explicitly -
+     * which is exactly what setUp() does below.
+     *
+     * Note that an @Bean method does NOT inherit its return type's
+     * @ConditionalOnProperty: ResendEmailSender's own condition cannot protect
+     * a context that instantiates it through a factory method.
+     */
+    @TestConfiguration
     @EnableRetry
     static class TestConfig {
 

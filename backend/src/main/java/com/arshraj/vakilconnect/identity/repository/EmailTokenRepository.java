@@ -94,6 +94,34 @@ public interface EmailTokenRepository extends JpaRepository<EmailToken, UUID> {
     Optional<EmailToken> findByTokenHashWithUser(@Param("tokenHash") String tokenHash);
 
     /**
+     * When the newest token of this type was created for this user, whatever
+     * state it is now in. Backs the resend cooldown (Phase 4).
+     *
+     * ADDITIVE - it changes nothing about issue/consume/invalidate.
+     *
+     * DELIBERATELY IGNORES STATE. A superseded or consumed token still proves
+     * an email was SENT, and the cooldown exists to protect the mailbox owner
+     * from being mail-bombed, not to protect the token table. Filtering to live
+     * rows would let an attacker reset the clock by consuming or superseding
+     * the previous token.
+     *
+     * Durable by construction: it reads created_at from the database rather
+     * than an in-memory counter, so a restart or a deploy cannot clear it. That
+     * matters because the alternative would make the cooldown bypassable by
+     * anyone who can trigger a redeploy - or simply by waiting for one.
+     *
+     * Served by ix_email_tokens_user_type_created, which V7 already created
+     * with created_at DESC for exactly this query.
+     */
+    @Query("""
+            SELECT MAX(t.createdAt) FROM EmailToken t
+             WHERE t.user.id = :userId
+               AND t.type = :type
+            """)
+    Optional<Instant> findLastCreatedAt(@Param("userId") UUID userId,
+                                        @Param("type") EmailTokenType type);
+
+    /**
      * Housekeeping. Deletes tokens that reached a terminal state before the
      * cutoff.
      *
