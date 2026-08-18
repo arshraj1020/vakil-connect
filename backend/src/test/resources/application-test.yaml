@@ -12,6 +12,16 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  main:
+    # Required so a test can replace `emailTaskExecutor` (defined in AsyncConfig)
+    # with a SYNCHRONOUS executor. Without a synchronous executor the
+    # AFTER_COMMIT email assertions race the pool thread: they pass locally and
+    # fail intermittently in CI, which is the worst failure mode available.
+    #
+    # Scoped to the test profile only. Production keeps the default, so a
+    # genuine duplicate-bean mistake still fails the build there.
+    allow-bean-definition-overriding: true
+
 logging:
   level:
     org.springframework.security: WARN
@@ -37,6 +47,12 @@ vakilconnect:
     # TokenHasher's determinism assertions, and this must never resemble a real
     # secret that could be copied into an environment file.
     token-pepper: test-only-pepper-not-a-real-secret
+
+  # Console sender for the whole suite: no test may ever reach a real provider.
+  # Tests that need the Resend adapter build it in isolation with
+  # ApplicationContextRunner and a MockRestServiceServer, never here.
+  email:
+    provider: console
 
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:

@@ -133,6 +133,29 @@
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
+		<!--
+		     Phase 3 - email retry.
+
+		     spring-retry provides @Retryable/@Recover; it is annotation-driven
+		     and therefore needs AOP proxying, which starter-aop supplies
+		     (spring-aop alone is on the classpath transitively, but the
+		     aspectjweaver in this starter is what spring-retry's interceptor
+		     expects).
+
+		     No HTTP client dependency is added: RestClient ships with
+		     spring-boot-starter-web, and a thin adapter over one REST call is
+		     less coupling than a vendor SDK. No mail starter either - Resend is
+		     an HTTP API, not SMTP.
+		-->
+		<dependency>
+			<groupId>org.springframework.retry</groupId>
+			<artifactId>spring-retry</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>

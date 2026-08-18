@@ -11,3 +11,20 @@ springdoc:
 logging:
   level:
     org.springframework.security: INFO
+
+# ---------------------------------------------------------------------------
+# Email: production sends for real.
+#
+# Pinned here rather than left to an environment variable so that the console
+# sender is structurally unreachable in production. If EMAIL_PROVIDER were the
+# only control, one missing variable would silently downgrade production to
+# logging every real user's verification link into the application log.
+#
+# RESEND_API_KEY and EMAIL_FROM must both be set in this environment.
+# ResendEmailSender refuses to construct without them, so a missing value is a
+# startup failure rather than an application that appears healthy and delivers
+# nothing.
+# ---------------------------------------------------------------------------
+vakilconnect:
+  email:
+    provider: resend

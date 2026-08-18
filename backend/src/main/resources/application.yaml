@@ -58,6 +58,30 @@ vakilconnect:
     token-purge-retention: ${TOKEN_PURGE_RETENTION:P30D}
     unverified-purge-after: ${UNVERIFIED_PURGE_AFTER:P30D}
 
+  # -------------------------------------------------------------------------
+  # Email transport (Phase 3).
+  #
+  # PROVIDER DEFAULTS TO console, AND THAT IS A SAFETY PROPERTY, not laziness.
+  # An unconfigured environment gets the sender that CANNOT mail a real person;
+  # application-prod.yaml pins `resend`. Selection is by property rather than
+  # by @Profile because this project has no `dev` profile - a local run
+  # activates none at all - so a profile-gated console sender would never exist
+  # locally and the Resend adapter would be chosen on a developer's laptop.
+  #
+  # api-key and from are intentionally NOT validated here: they are required
+  # only when provider=resend, and ResendEmailSender's constructor - which only
+  # exists in that case - refuses to start without them.
+  #
+  # Note there is no base-URL key. Links are built from
+  # vakilconnect.identity.public-base-url, which already exists above. A second
+  # copy would be two sources of truth for one value.
+  # -------------------------------------------------------------------------
+  email:
+    provider: ${EMAIL_PROVIDER:console}
+    api-key: ${RESEND_API_KEY:}
+    from: ${EMAIL_FROM:}
+    from-name: ${EMAIL_FROM_NAME:}
+
 logging:
   level:
     org.springframework.security: DEBUG
