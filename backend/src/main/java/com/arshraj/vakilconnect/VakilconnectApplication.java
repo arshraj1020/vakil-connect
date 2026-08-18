@@ -1,5 +1,6 @@
 package com.arshraj.vakilconnect;
 
+import com.arshraj.vakilconnect.ai.AiProperties;
 import com.arshraj.vakilconnect.email.EmailProperties;
 import com.arshraj.vakilconnect.identity.config.IdentityProperties;
 import org.springframework.boot.SpringApplication;
@@ -17,7 +18,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * so scheduling can be enabled here without forcing the job to run.
  */
 @SpringBootApplication
-@EnableConfigurationProperties({ IdentityProperties.class, EmailProperties.class })
+@EnableConfigurationProperties({ IdentityProperties.class, EmailProperties.class,
+		AiProperties.class })
 @EnableScheduling
 public class VakilconnectApplication {
 

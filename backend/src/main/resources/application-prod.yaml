@@ -28,3 +28,27 @@ logging:
 vakilconnect:
   email:
     provider: resend
+
+# ---------------------------------------------------------------------------
+# AI: deliberately NOT pinned here, unlike email above.
+#
+# PRODUCTION RUNS THE STUB, AND REQUIRES NO AI ENVIRONMENT VARIABLES AT ALL.
+# Nothing needs to be added to Render for this backend to deploy and run.
+#
+# The asymmetry with email is intentional, because the obvious move is to
+# mirror the block above. Pinning `resend` protects production from a genuine
+# hazard: the console sender would write every real user's verification link
+# into the application log. The AI stub carries no equivalent risk - as of
+# AI-0 nothing in the application calls an LlmClient at all, so it is inert.
+#
+# `ollama` is NOT an option here, and that is a deployment fact rather than a
+# preference: Ollama is a local inference server. Running it on Render would
+# mean shipping a multi-gigabyte model image and doing CPU inference on a
+# small web instance - a different hosting decision entirely, and one that has
+# not been made. Local development and demos use provider=ollama; production
+# stays on the stub until that decision exists.
+#
+# If a hosted model is ever wanted here, the change is a new LlmClient
+# implementation plus AI_PROVIDER - no caller and no other configuration
+# changes.
+# ---------------------------------------------------------------------------

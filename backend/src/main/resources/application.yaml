@@ -82,6 +82,69 @@ vakilconnect:
     from: ${EMAIL_FROM:}
     from-name: ${EMAIL_FROM_NAME:}
 
+  # -------------------------------------------------------------------------
+  # AI foundation (AI-0).
+  #
+  # NOTHING CALLS AN LlmClient YET. There is no AI endpoint, no job and no
+  # service that reaches for one - AI-0 delivers the abstraction and the two
+  # implementations behind it, nothing more. These keys exist now so the
+  # configuration surface ships with the code that reads it.
+  #
+  # THERE IS NO API KEY, ANYWHERE, BY DESIGN. The real provider is Ollama
+  # running locally, so the entire AI feature is usable with no billing
+  # account and no paid service. A hosted provider can be added later as
+  # another LlmClient implementation without changing a single caller.
+  #
+  # PROVIDER DEFAULTS TO stub, IN EVERY ENVIRONMENT INCLUDING PRODUCTION.
+  # Unlike the email provider, this one is NOT pinned in application-prod.yaml.
+  # The console email sender is dangerous in production - it logs real users'
+  # verification links - so pinning `resend` there is a safety measure. Here
+  # the reasoning is the opposite direction: Render does not run Ollama, so
+  # production stays in stub mode until there is an explicit decision about
+  # how to host the AI demo. The stub is inert at AI-0 because no caller
+  # exists.
+  #
+  # base-url and model are read only when provider=ollama. They are declared
+  # unconditionally so `AI_PROVIDER=ollama` is the ONLY variable a developer
+  # has to set to go live locally.
+  #
+  # Design: docs/AI-ARCHITECTURE-AND-ROADMAP.md
+  # -------------------------------------------------------------------------
+  ai:
+    provider: ${AI_PROVIDER:stub}
+
+    # Ollama's default listen address. Trailing slashes are stripped at bind
+    # time, so http://localhost:11434/ is the same configuration.
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+
+    # Must already be pulled: `ollama pull llama3.2`. A property, not a
+    # constant, because which model is sensible depends on the machine -
+    # 3B on a laptop, something larger with a GPU.
+    model: ${AI_MODEL:llama3.2}
+
+    # Low by default. Legal answers should be reproducible and boring; this is
+    # not a creative-writing workload.
+    temperature: ${AI_TEMPERATURE:0.2}
+
+    # Sent to Ollama as `num_predict`. On local inference this is a TIME
+    # control rather than a cost control: every token is CPU or GPU work on
+    # the developer's own machine, so an unbounded generation is a request
+    # that looks like a hang.
+    max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1024}
+
+    # Finite on purpose. RestClient's default read timeout is unlimited, and a
+    # model that stalls mid-generation would hold a request thread until the
+    # process restarts.
+    #
+    # READ IS 120s, FAR LONGER THAN A HOSTED API WOULD NEED. Local CPU
+    # inference is slow - a 3B model answering a paragraph takes tens of
+    # seconds, and a cold start where the model is loaded into RAM can exceed
+    # a minute. A cloud-tuned timeout would manufacture failures out of
+    # healthy calls. Connect stays short: to localhost this either succeeds
+    # at once or Ollama is not running.
+    connect-timeout: ${AI_CONNECT_TIMEOUT:PT5S}
+    read-timeout: ${AI_READ_TIMEOUT:PT120S}
+
 logging:
   level:
     org.springframework.security: DEBUG

@@ -54,6 +54,24 @@ vakilconnect:
   email:
     provider: console
 
+  # Stub model for the whole suite: NO TEST MAY EVER CALL AN INFERENCE SERVER.
+  # A real call would be nondeterministic, slow enough to dominate the build,
+  # and dependent on whether the machine running the tests happens to have
+  # Ollama installed and the right model pulled - so the suite would pass on a
+  # developer's laptop and fail in CI, which is the worst failure mode
+  # available.
+  #
+  # Redundant with application.yaml's ${AI_PROVIDER:stub} default, and pinned
+  # anyway: the default protects only an environment where AI_PROVIDER is
+  # unset, and a developer who exports AI_PROVIDER=ollama in their shell to
+  # try the real thing would otherwise have the entire test suite follow them
+  # into localhost:11434.
+  #
+  # Tests that need the Ollama adapter build it in isolation with
+  # MockRestServiceServer, never here. See OllamaLlmClientTest.
+  ai:
+    provider: stub
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz
