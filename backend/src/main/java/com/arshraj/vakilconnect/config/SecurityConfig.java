@@ -62,6 +62,26 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login",
+
+                                /*
+                                 * Email verification (Phase 4). Public by
+                                 * necessity, not convenience: a user who cannot
+                                 * log in yet must still be able to verify, and
+                                 * one whose email never arrived must be able to
+                                 * ask for another.
+                                 *
+                                 * Enumerated individually rather than as
+                                 * /api/auth/** so that any future auth endpoint
+                                 * is authenticated by default and has to be
+                                 * opened deliberately.
+                                 *
+                                 * Neither reads the SecurityContext; authority
+                                 * comes from possession of the token, which is
+                                 * single-use and expiring.
+                                 */
+                                "/api/auth/verify-email",
+                                "/api/auth/resend-verification",
+
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"

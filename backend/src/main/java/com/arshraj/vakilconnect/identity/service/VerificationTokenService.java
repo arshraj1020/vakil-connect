@@ -167,6 +167,35 @@ public class VerificationTokenService {
     }
 
     /**
+     * How long the caller must wait before another token of this type may be
+     * issued for this user, or {@link Duration#ZERO} when it may be issued now.
+     *
+     * ADDITIVE (Phase 4). Issue, consume and invalidate are untouched.
+     *
+     * READ-ONLY AND ADVISORY. This is the ordinary, friendly check that
+     * produces a 429 before anything is written. It is NOT the correctness
+     * boundary: two requests can both read "no cooldown" and proceed, and the
+     * one that loses the ensuing race is stopped by `uq_email_tokens_live` in
+     * the database. The check improves the common case; the constraint
+     * guarantees the invariant.
+     */
+    @Transactional(readOnly = true)
+    public Duration cooldownRemaining(UUID userId, EmailTokenType type, Duration cooldown) {
+        Instant lastRequested = emailTokenRepository
+                .findLastCreatedAt(userId, type)
+                .orElse(null);
+
+        if (lastRequested == null) {
+            return Duration.ZERO;
+        }
+
+        Duration elapsed = Duration.between(lastRequested, Instant.now());
+        Duration remaining = cooldown.minus(elapsed);
+
+        return remaining.isNegative() ? Duration.ZERO : remaining;
+    }
+
+    /**
      * Deletes tokens that have been terminal for longer than the configured
      * retention. Live tokens are never touched, whatever their age.
      */

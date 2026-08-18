@@ -14,7 +14,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.task.SyncTaskExecutor;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -66,8 +65,18 @@ class EmailDispatchIT extends AbstractIntegrationTest {
      * @Primary because the test profile sets provider=console, so
      * ConsoleEmailSender is also present; without this, EmailDispatchListener's
      * constructor injection would fail on two EmailService candidates.
+     *
+     * DELIBERATELY NOT @Component. It is registered by the @Import above, which
+     * is enough - and @Component would be actively harmful: this class sits in
+     * `com.arshraj.vakilconnect.email` in TEST sources, which @SpringBootApplication's
+     * component scan covers with test-classes on the same classpath. Boot's
+     * TypeExcludeFilter excludes @TestConfiguration but NOT @Component, so a
+     * @Component here is scanned into EVERY @SpringBootTest context in the suite.
+     *
+     * That is not hypothetical: with this annotation present, any other test
+     * contributing its own @Primary EmailService produced TWO primary
+     * candidates and the context failed to start.
      */
-    @Component
     @Primary
     static class RecordingEmailSender implements EmailService {
 
@@ -100,8 +109,13 @@ class EmailDispatchIT extends AbstractIntegrationTest {
     @Autowired
     private TransactionalPublisher transactionalPublisher;
 
-    /** Publishes inside a real transaction so AFTER_COMMIT can fire. */
-    @Component
+    /**
+     * Publishes inside a real transaction so AFTER_COMMIT can fire.
+     *
+     * Not @Component, for the same reason as RecordingEmailSender above: the
+     * @Import registers it, and @Component would leak it into every other
+     * @SpringBootTest context in the suite.
+     */
     static class TransactionalPublisher {
 
         private final ApplicationEventPublisher publisher;

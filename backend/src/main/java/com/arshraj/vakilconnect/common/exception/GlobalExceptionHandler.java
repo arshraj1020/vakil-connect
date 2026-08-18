@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -133,6 +134,30 @@ public class GlobalExceptionHandler {
             TokenAlreadyUsedException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request,
                 TokenAlreadyUsedException.CODE);
+    }
+
+    /**
+     * A verification email was requested again too soon.
+     *
+     * 429 with `Retry-After` in seconds, so a client can render a countdown
+     * instead of guessing. This is the ORDINARY cooldown, detected by reading
+     * the newest token before anything is written - distinct from the
+     * concurrent-race outcome below, which is a 409.
+     */
+    @ExceptionHandler(CooldownActiveException.class)
+    public ResponseEntity<ErrorResponse> handleCooldownActive(
+            CooldownActiveException ex, HttpServletRequest request) {
+
+        ErrorResponse body = new ErrorResponse(
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI());
+        body.setCode(CooldownActiveException.CODE);
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
+                .body(body);
     }
 
     /**
