@@ -1,6 +1,7 @@
 package com.arshraj.vakilconnect;
 
 import com.arshraj.vakilconnect.ai.AiProperties;
+import com.arshraj.vakilconnect.ai.document.config.AiDocumentProperties;
 import com.arshraj.vakilconnect.email.EmailProperties;
 import com.arshraj.vakilconnect.identity.config.IdentityProperties;
 import org.springframework.boot.SpringApplication;
@@ -19,7 +20,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableConfigurationProperties({ IdentityProperties.class, EmailProperties.class,
-		AiProperties.class })
+		AiProperties.class, AiDocumentProperties.class })
 @EnableScheduling
 public class VakilconnectApplication {
 

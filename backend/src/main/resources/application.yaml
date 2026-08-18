@@ -17,6 +17,35 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  # ---------------------------------------------------------------------------
+  # Multipart uploads (AI-1).
+  #
+  # THIS BLOCK IS NOT OPTIONAL. Spring Boot's DEFAULT max-file-size is 1MB, so
+  # before AI-1 any upload above that was rejected by the container with a
+  # MaxUploadSizeExceededException - which, until this phase, had no handler and
+  # surfaced as a 500. There was no upload endpoint, so nobody noticed.
+  #
+  # DELIBERATELY LARGER THAN vakilconnect.ai.document.max-file-size (10MB). The
+  # container rejects an oversized part BEFORE any controller method runs, so if
+  # these were equal - or smaller - the application's own check could never fire
+  # and every oversize would arrive as a container error instead of a described
+  # one. The gap is what lets the service produce DOCUMENT_TOO_LARGE with the
+  # actual configured limit in the message.
+  #
+  # Both paths map to 413 + DOCUMENT_TOO_LARGE anyway (see
+  # GlobalExceptionHandler), because this ordering is easy to get wrong and the
+  # client should not be able to tell the difference.
+  #
+  # max-request-size exceeds max-file-size to leave room for part headers and
+  # any future second field; a single 12MB file in a 12MB request would fail on
+  # the envelope, not the file.
+  # ---------------------------------------------------------------------------
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:12MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:16MB}
+
 springdoc:
   api-docs:
     enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
@@ -144,6 +173,26 @@ vakilconnect:
     # at once or Ollama is not running.
     connect-timeout: ${AI_CONNECT_TIMEOUT:PT5S}
     read-timeout: ${AI_READ_TIMEOUT:PT120S}
+
+    # -------------------------------------------------------------------------
+    # Document uploads (AI-1).
+    #
+    # Bound by AiDocumentProperties, which is SEPARATE from AiProperties on
+    # purpose: model configuration and upload limits are different concerns with
+    # different lifetimes, and AiPropertiesTest pins AiProperties' component set
+    # so nothing is added there without a security review.
+    #
+    # 10MB, AND THE NUMBER IS LOAD-BEARING. Document bytes are stored in a
+    # `bytea` column in PostgreSQL - no S3, no R2, no second service - on a
+    # free-tier Neon plan with a storage cap. This ceiling is what keeps that
+    # viable, and it also bounds the heap: an upload is read fully into memory
+    # before it is written, because a bytea value has to be materialised anyway.
+    #
+    # MUST STAY BELOW spring.servlet.multipart.max-file-size above, or the
+    # application's own check is unreachable. See the note there.
+    # -------------------------------------------------------------------------
+    document:
+      max-file-size: ${AI_DOCUMENT_MAX_FILE_SIZE:10MB}
 
 logging:
   level:

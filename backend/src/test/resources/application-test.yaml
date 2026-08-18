@@ -72,6 +72,22 @@ vakilconnect:
   ai:
     provider: stub
 
+    # A DELIBERATELY TINY UPLOAD LIMIT, so the oversized-file test can prove the
+    # rejection with a ~100KB payload instead of generating 11MB.
+    #
+    # Set here rather than with @TestPropertySource on the one test class that
+    # needs it: an inline property override forks a SECOND Spring context, and
+    # this suite's contexts each start Flyway against Testcontainers. Pinning it
+    # for the whole suite keeps every integration test on the single cached
+    # context, which is worth far more than the realism of a 10MB limit in a
+    # test that only cares about the comparison.
+    #
+    # The container limit (spring.servlet.multipart.max-file-size, 12MB) is left
+    # alone, so the application's own check is still the one that fires - which
+    # is the path production uses and therefore the path worth testing.
+    document:
+      max-file-size: 64KB
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz

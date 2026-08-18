@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import java.util.HashMap;
@@ -173,6 +174,83 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()))
                 .body(body);
+    }
+
+    /* --------------------------------------------- AI document upload (AI-1) --
+     *
+     * Four distinct codes rather than one generic 400, for the same reason the
+     * token handlers above are separate: the frontend has to do four different
+     * things - pick a file, rename it, pick a different format, or pick a
+     * smaller one. Each message is fixed at the exception and never assembles
+     * caller input, so a hostile filename cannot be reflected into a response
+     * body that some page renders.
+     */
+
+    @ExceptionHandler(EmptyDocumentException.class)
+    public ResponseEntity<ErrorResponse> handleEmptyDocument(
+            EmptyDocumentException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request,
+                EmptyDocumentException.CODE);
+    }
+
+    @ExceptionHandler(InvalidDocumentNameException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidDocumentName(
+            InvalidDocumentNameException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request,
+                InvalidDocumentNameException.CODE);
+    }
+
+    /**
+     * 415, not 400: the request was well formed and understood. What the server
+     * declines is the PAYLOAD FORMAT, which is precisely what 415 exists to
+     * say - a 400 would send the client looking for a malformed request.
+     */
+    @ExceptionHandler(UnsupportedDocumentTypeException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedDocumentType(
+            UnsupportedDocumentTypeException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage(), request,
+                UnsupportedDocumentTypeException.CODE);
+    }
+
+    @ExceptionHandler(DocumentTooLargeException.class)
+    public ResponseEntity<ErrorResponse> handleDocumentTooLarge(
+            DocumentTooLargeException ex, HttpServletRequest request) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), request,
+                DocumentTooLargeException.CODE);
+    }
+
+    /**
+     * Spring's OWN size rejection, mapped to the SAME status and code as the
+     * application's.
+     *
+     * Two layers can refuse an oversized upload. The application checks
+     * `vakilconnect.ai.document.max-file-size` inside the service; the servlet
+     * container checks `spring.servlet.multipart.max-file-size` and throws THIS
+     * before any controller method runs. The container limit is set higher, so
+     * the intended path is the application's - but if the two are ever
+     * misordered, or a request slips past on total size rather than part size,
+     * this stops the difference from being visible to the client as a sudden
+     * 500 at an undocumented threshold.
+     *
+     * Without this handler the generic RuntimeException fallback would catch it
+     * and report "An unexpected error occurred", which is both a lie and
+     * unactionable.
+     *
+     * The configured maximum is not read here - this handler has no access to
+     * AiDocumentProperties and adding the dependency to a global advice for one
+     * sentence is not worth it. The message says the file is too large and
+     * points at the documented limit instead of guessing a number.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException ex, HttpServletRequest request) {
+
+        log.warn("Upload rejected by the servlet container at {} (exceeded "
+                + "spring.servlet.multipart limits)", request.getRequestURI());
+
+        return build(HttpStatus.PAYLOAD_TOO_LARGE,
+                "The file is too large.", request,
+                DocumentTooLargeException.CODE);
     }
 
     /**
