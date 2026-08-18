@@ -214,6 +214,52 @@ fails validation on every database that already ran it. Fix forward with a new
 Migrations are not automatically reversible. Take a backup before deploying a
 release that adds one.
 
+### ⚠️ One-time forced sign-out when the `cca` JWT claim ships
+
+**Deploying the credential-change invalidation phase signs out every logged-in
+user, once.** Plan for it; do not be surprised by it.
+
+**Why.** JWTs now carry a `cca` claim holding the account's
+`credentials_changed_at` as epoch milliseconds, and `JwtAuthenticationFilter`
+rejects any token whose claim is older than the stored value. **Every token
+issued before this change has no `cca` at all, and an absent claim is treated
+as stale.**
+
+Admitting claimless tokens instead was considered and rejected: it would leave
+a window of up to `JWT_EXPIRATION` (24 h by default) in which the mechanism
+does nothing — for precisely the sessions most likely to be compromised.
+
+**What users see.** One `401`, then the normal redirect to the login page. The
+frontend already handles 401 by clearing the session, so no UI change is
+needed. Users log in again and continue.
+
+**What to do.**
+
+- Deploy off-peak.
+- Tell users in advance if you have a channel for it.
+- Expect a burst of `POST /api/auth/login` immediately after the deploy.
+- **No database migration.** `credentials_changed_at` has existed since V7.
+- **No new environment variables.**
+- **Do NOT bulk-update `credentials_changed_at`** as part of the deploy. It is
+  unnecessary — absent claims are rejected regardless — and it would destroy
+  the audit value of the existing per-user timestamps.
+
+### ⚠️ Rollback caveat — reverting re-admits invalidated sessions
+
+Rolling this phase back is `git revert` with **no database action**: the column
+stays and is simply no longer read.
+
+**But the rollback is not security-neutral.** With the check gone, the filter
+again accepts any correctly-signed, unexpired token — **including tokens that
+were deliberately invalidated while the phase was live**, by a password change
+or an account takeover. If you revert *after* responding to a compromise, you
+un-revoke the attacker's session.
+
+If you must revert following a credential-related incident, force those
+sessions dead another way: deactivate the affected accounts (`users.active =
+false`, enforced per request), or rotate `JWT_SECRET`, which invalidates every
+token everywhere at the cost of signing out all users again.
+
 ### Two settings that are wrong by default for production
 
 **1. The actuator port has no authentication.**

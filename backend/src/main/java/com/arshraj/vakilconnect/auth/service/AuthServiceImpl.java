@@ -325,7 +325,15 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found."));
 
-        String token = jwtService.generateToken(user.getEmail());
+        /*
+         * The token is bound to the credential state it is minted under, so a
+         * later password change or account takeover invalidates it.
+         *
+         * Read from the user row loaded a moment ago in this same transaction -
+         * so it cannot be stale relative to the credentials that just
+         * authenticated.
+         */
+        String token = jwtService.generateToken(user.getEmail(), user.getCredentialsChangedAt());
 
         return new LoginResponse(
                 token,

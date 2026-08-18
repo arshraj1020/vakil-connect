@@ -27,13 +27,26 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() ->
                         new UsernameNotFoundException("User not found with email: " + email));
 
-        return org.springframework.security.core.userdetails.User
-                .withUsername(user.getEmail())
-                .password(user.getPasswordHash())
-                .disabled(!user.isActive())
-                .authorities(List.of(
-                        new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
-                ))
-                .build();
+        /*
+         * AuthenticatedUser rather than Spring's builder, so the principal can
+         * carry credentialsChangedAt for the filter's staleness check without a
+         * second query - this row already supplied it.
+         *
+         * SEMANTICS ARE UNCHANGED. The builder previously received
+         * `.disabled(!user.isActive())`; AuthenticatedUser takes `active`
+         * directly and returns it from isEnabled(). Same meaning, opposite
+         * phrasing - which is precisely why it is spelled out here: reading
+         * `isActive()` next to a parameter named `active` is much harder to get
+         * backwards than a negated `disabled` flag.
+         *
+         * Username, password and authorities are passed through verbatim.
+         */
+        return new AuthenticatedUser(
+                user.getEmail(),
+                user.getPasswordHash(),
+                user.isActive(),
+                user.getCredentialsChangedAt(),
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+        );
     }
 }
