@@ -308,6 +308,28 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * The assistant could not answer (AI-3). 503, matching the embedding
+     * handler: the usual cause is the local model being unreachable, which is a
+     * DEPENDENCY being down rather than a bad request.
+     *
+     * NOT used for "the documents do not answer this" - that is a 200 with
+     * grounded=false, because it is an answer rather than a failure.
+     *
+     * The cause is logged for the stack trace; the RESPONSE carries only the
+     * fixed message, because the cause may name a model or a host.
+     */
+    @ExceptionHandler(AiAnswerUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleAiAnswerUnavailable(
+            AiAnswerUnavailableException ex, HttpServletRequest request) {
+
+        log.warn("AI answer unavailable at {}", request.getRequestURI(), ex);
+
+        return build(HttpStatus.SERVICE_UNAVAILABLE,
+                "The document assistant is temporarily unavailable. Please try again.",
+                request, AiAnswerUnavailableException.CODE);
+    }
+
+    /**
      * A database constraint rejected the write.
      *
      * THIS IS THE K1 DECISION. A concurrent second token issue is stopped by the

@@ -6,6 +6,10 @@ import com.arshraj.vakilconnect.ai.document.dto.DocumentUploadResponse;
 import com.arshraj.vakilconnect.ai.document.service.AiDocumentService;
 import com.arshraj.vakilconnect.ai.ingest.DocumentIngestionService;
 import com.arshraj.vakilconnect.ai.ingest.IngestionResult;
+import com.arshraj.vakilconnect.ai.rag.AskQuestionRequest;
+import com.arshraj.vakilconnect.ai.rag.RagAnswer;
+import com.arshraj.vakilconnect.ai.rag.RagService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +18,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -54,11 +59,14 @@ public class AiDocumentController {
 
     private final AiDocumentService documentService;
     private final DocumentIngestionService ingestionService;
+    private final RagService ragService;
 
     public AiDocumentController(AiDocumentService documentService,
-                                DocumentIngestionService ingestionService) {
+                                DocumentIngestionService ingestionService,
+                                RagService ragService) {
         this.documentService = documentService;
         this.ingestionService = ingestionService;
+        this.ragService = ragService;
     }
 
     /**
@@ -168,5 +176,44 @@ public class AiDocumentController {
                                    @PathVariable UUID documentId) {
 
         return ingestionService.process(authentication.getName(), documentId);
+    }
+
+    /**
+     * Answers a question from the caller's own documents (AI-3).
+     *
+     * ONE ENDPOINT, NOT TWO. A per-document variant
+     * ({@code /{id}/ask}) was considered and rejected: it is a filter on the
+     * retrieval query, not a different capability, and shipping both would mean
+     * two paths to maintain and two places to get the ownership predicate right.
+     * The corpus-wide question is also the more useful one - a user asking "what
+     * is my notice period" does not necessarily know which upload contains the
+     * answer. Narrowing to one document becomes an optional field on this
+     * request when something actually needs it.
+     *
+     * NO DOCUMENT ID IN THE REQUEST AT ALL. The search is scoped to whatever the
+     * authenticated user owns, and the owner comes from the security context.
+     * An id in the payload would be a client-supplied identifier feeding a
+     * retrieval query - re-verified anyway, so it would add attack surface and
+     * no capability.
+     *
+     * SECURITY: authenticated by SecurityConfig's default-deny, like every route
+     * here. Ownership is enforced inside the vector search's WHERE clause, so
+     * another user's chunks are never scored or returned. Cross-user access
+     * needs no 404 path on this endpoint because there is no id to probe - the
+     * question simply searches an empty corpus and gets insufficient evidence.
+     *
+     * 200 EVEN WHEN THE DOCUMENTS DO NOT ANSWER. `grounded: false` is a
+     * successful, honest response, not an error. A 404 there would make a
+     * working system look broken every time somebody asked about something they
+     * had not uploaded.
+     *
+     * RETURNS AN ANSWER AND STRUCTURED SOURCES. No embeddings, no entities, no
+     * chunk ids beyond what a citation needs.
+     */
+    @PostMapping("/ask")
+    public RagAnswer ask(Authentication authentication,
+                         @Valid @RequestBody AskQuestionRequest request) {
+
+        return ragService.ask(authentication.getName(), request.question());
     }
 }

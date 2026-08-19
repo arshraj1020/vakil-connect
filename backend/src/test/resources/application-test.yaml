@@ -109,6 +109,22 @@ vakilconnect:
       chunk-overlap: 200
       max-chunks-per-document: 2000
 
+    # Production values. Retrieval behaviour is what the tests assert, so
+    # loosening the threshold here would test a configuration nobody runs.
+    #
+    # The 0.6 threshold works with StubEmbeddingClient for a specific reason
+    # worth stating: the stub is DETERMINISTIC over text, so embedding a query
+    # whose text exactly matches a chunk yields the identical vector and a
+    # cosine distance of 0, while any unrelated text gives roughly 1.0 (random
+    # 768-dimensional vectors are near-orthogonal). That cleanly separates
+    # "relevant" from "irrelevant" without any semantics, which is what lets
+    # retrieval be tested at all without a real model.
+    retrieval:
+      top-k: 6
+      max-distance: 0.6
+      max-context-characters: 8000
+      max-question-characters: 4000
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz

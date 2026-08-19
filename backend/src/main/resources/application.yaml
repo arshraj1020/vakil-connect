@@ -247,6 +247,37 @@ vakilconnect:
       chunk-overlap: ${AI_CHUNK_OVERLAP:200}
       max-chunks-per-document: ${AI_MAX_CHUNKS_PER_DOCUMENT:2000}
 
+    # -------------------------------------------------------------------------
+    # Retrieval / RAG (AI-3).
+    #
+    # top-k 6: enough that a question spanning two clauses gets both, few enough
+    # that the prompt does not fill with weakly-related passages. Every extra
+    # chunk is more tokens for a local CPU to read.
+    #
+    # max-distance is COSINE DISTANCE, so LOWER IS MORE SIMILAR: 0 identical
+    # direction, 1 orthogonal, 2 opposite. 0.6 is deliberately permissive -
+    # being too strict is the worse failure, because the user gets "insufficient
+    # evidence" for a question their document does answer and concludes the
+    # feature is broken. A slightly weak passage in the context is something the
+    # grounded prompt already tells the model to ignore.
+    #
+    # THIS IS THE VALUE MOST WORTH TUNING once there is evaluation data. It is
+    # informed by how nomic-embed-text scores, not measured.
+    #
+    # max-context-characters bounds the prompt. Without it, top-k x chunk-size
+    # is 7200 characters of context alone, and raising top-k later would
+    # silently push past a small model's window - where the first thing to fall
+    # out is the SYSTEM PROMPT. It is a prompt-injection control, not only a
+    # cost one.
+    #
+    # max-question-characters bounds the other end for the same reason.
+    # -------------------------------------------------------------------------
+    retrieval:
+      top-k: ${AI_RETRIEVAL_TOP_K:6}
+      max-distance: ${AI_RETRIEVAL_MAX_DISTANCE:0.6}
+      max-context-characters: ${AI_MAX_CONTEXT_CHARACTERS:8000}
+      max-question-characters: ${AI_MAX_QUESTION_CHARACTERS:4000}
+
 logging:
   level:
     org.springframework.security: DEBUG
