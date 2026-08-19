@@ -253,6 +253,60 @@ public class GlobalExceptionHandler {
                 DocumentTooLargeException.CODE);
     }
 
+    /* ------------------------------------------- AI document ingestion (AI-2) --
+     *
+     * Three codes for three genuinely different client actions: the file is
+     * unusable and must be replaced, the request must be retried later, or the
+     * caller should simply wait. Each message is fixed at the exception and
+     * never interpolates a parser message, an exception cause, or anything
+     * derived from document content.
+     */
+
+    /**
+     * 422, not 400 and not 500. The request was well formed and understood; the
+     * stored FILE is what cannot be processed. A 400 would blame the request,
+     * and a 500 would blame the server for a password-protected PDF the user
+     * chose to upload.
+     */
+    @ExceptionHandler(DocumentExtractionException.class)
+    public ResponseEntity<ErrorResponse> handleDocumentExtraction(
+            DocumentExtractionException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request,
+                DocumentExtractionException.CODE);
+    }
+
+    /**
+     * 409, because the request conflicts with the resource's current state and
+     * the remedy is to wait and poll `status` rather than to change the request.
+     * This is the ingestion pipeline's conditional-UPDATE guard surfacing.
+     */
+    @ExceptionHandler(DocumentProcessingConflictException.class)
+    public ResponseEntity<ErrorResponse> handleDocumentProcessingConflict(
+            DocumentProcessingConflictException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request,
+                DocumentProcessingConflictException.CODE);
+    }
+
+    /**
+     * 503, because the overwhelmingly common cause is that the local Ollama
+     * server is not running or the embedding model was never pulled - a
+     * DEPENDENCY being down, not a bad request and not a broken application.
+     * 503 is the one status that says "try again later" truthfully.
+     *
+     * The cause is logged for the stack trace; the RESPONSE carries only the
+     * fixed message, because the cause may name a model or a host.
+     */
+    @ExceptionHandler(DocumentEmbeddingException.class)
+    public ResponseEntity<ErrorResponse> handleDocumentEmbedding(
+            DocumentEmbeddingException ex, HttpServletRequest request) {
+
+        log.warn("Embedding unavailable at {}", request.getRequestURI(), ex);
+
+        return build(HttpStatus.SERVICE_UNAVAILABLE,
+                "Document indexing is temporarily unavailable. Please try again.",
+                request, DocumentEmbeddingException.CODE);
+    }
+
     /**
      * A database constraint rejected the write.
      *

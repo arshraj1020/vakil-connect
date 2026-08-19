@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -122,6 +123,101 @@ public interface AiDocumentRepository extends JpaRepository<AiDocument, UUID> {
             """)
     int deleteByIdAndOwner(@Param("documentId") UUID documentId,
                            @Param("userId") UUID userId);
+
+    /* ------------------------------------------------ ingestion lifecycle (AI-2) --
+     *
+     * Three bulk UPDATEs rather than load-mutate-save. Each is one statement
+     * whose WHERE clause carries the guard, so the transition is atomic and its
+     * affected-row count is the decision - the same technique
+     * EmailTokenRepository.consume uses.
+     *
+     * ALL THREE SET updated_at EXPLICITLY. A bulk JPQL update bypasses the
+     * persistence context, so @PreUpdate never fires and the column would keep
+     * whatever value the last entity save left. Forgetting this is silent: the
+     * write succeeds and the timestamp is simply wrong.
+     */
+
+    /**
+     * Claims a document for processing. THE CONCURRENCY GUARD.
+     *
+     * The predicate is the lock: it matches only a document that this user owns
+     * and that is NOT already PROCESSING. Two concurrent requests are serialised
+     * by PostgreSQL's row lock, exactly one sees a claimable row, and the other
+     * updates zero rows.
+     *
+     * THE RETURN VALUE IS THE DECISION. One means claimed. Zero means the
+     * document does not exist, is not theirs, OR is already being processed -
+     * three cases the caller separates with one follow-up read, because
+     * collapsing "not yours" and "busy" into the same response would leak
+     * whether another user's document exists.
+     *
+     * failureReason is cleared on claim: a previous run's message must not
+     * survive into a run that may succeed.
+     *
+     * Deliberately permits a claim from READY, so a document can be reprocessed
+     * after a model or chunking change. Idempotency is what makes that safe -
+     * stage 3 replaces chunks rather than appending.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE AiDocument d
+               SET d.status = com.arshraj.vakilconnect.ai.document.entity.AiDocumentStatus.PROCESSING,
+                   d.failureReason = null,
+                   d.updatedAt = :now
+             WHERE d.id = :documentId
+               AND d.user.id = :userId
+               AND d.status <> com.arshraj.vakilconnect.ai.document.entity.AiDocumentStatus.PROCESSING
+            """)
+    int claimForProcessing(@Param("documentId") UUID documentId,
+                           @Param("userId") UUID userId,
+                           @Param("now") Instant now);
+
+    /** Marks a successfully ingested document READY. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE AiDocument d
+               SET d.status = com.arshraj.vakilconnect.ai.document.entity.AiDocumentStatus.READY,
+                   d.failureReason = null,
+                   d.updatedAt = :now
+             WHERE d.id = :documentId
+            """)
+    int markReady(@Param("documentId") UUID documentId, @Param("now") Instant now);
+
+    /**
+     * Marks a run FAILED with a safe reason.
+     *
+     * The reason is a FIXED, DEVELOPER-WRITTEN string chosen by the caller from
+     * a small set - never a parser message, never an exception's getMessage(),
+     * and never anything derived from document content. It is returned to the
+     * client and written to logs.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE AiDocument d
+               SET d.status = com.arshraj.vakilconnect.ai.document.entity.AiDocumentStatus.FAILED,
+                   d.failureReason = :reason,
+                   d.updatedAt = :now
+             WHERE d.id = :documentId
+            """)
+    int markFailed(@Param("documentId") UUID documentId,
+                   @Param("reason") String reason,
+                   @Param("now") Instant now);
+
+    /**
+     * The stored bytes and content type, for ingestion only.
+     *
+     * THE ONE READ IN THIS APPLICATION THAT LOADS `content`. AI-1 established
+     * that no read path selects the file bytes; extraction is the exception
+     * that proves the rule, and it is owner-scoped like everything else.
+     * Returning the entity rather than a projection is correct here precisely
+     * because the bytes ARE what is wanted.
+     */
+    @Query("""
+            SELECT d FROM AiDocument d
+             WHERE d.id = :documentId AND d.user.id = :userId
+            """)
+    Optional<AiDocument> findForIngestion(@Param("documentId") UUID documentId,
+                                          @Param("userId") UUID userId);
 
     /**
      * How many documents one user owns.

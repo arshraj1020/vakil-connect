@@ -88,6 +88,27 @@ vakilconnect:
     document:
       max-file-size: 64KB
 
+    # Stub embeddings for the whole suite: NO TEST MAY EVER CALL OLLAMA. A real
+    # call would be nondeterministic, slow enough to dominate the build, and
+    # dependent on whether the machine happens to have the model pulled - so the
+    # suite would pass locally and fail in CI.
+    #
+    # THE DIMENSION IS THE REAL 768, NOT A CONVENIENT SMALL NUMBER. The stub
+    # must produce vectors the real vector(768) column accepts, or every
+    # persistence test would pass against a width production never sees and the
+    # first real ingestion would fail on a constraint no test had exercised.
+    embedding:
+      provider: stub
+      model: nomic-embed-text
+      dimension: 768
+
+    # Production values, deliberately. Chunking behaviour is what the tests
+    # assert, so shrinking these would test a configuration nobody runs.
+    ingestion:
+      chunk-size: 1200
+      chunk-overlap: 200
+      max-chunks-per-document: 2000
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz

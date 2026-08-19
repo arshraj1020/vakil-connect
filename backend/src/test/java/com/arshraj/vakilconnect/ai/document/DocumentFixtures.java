@@ -21,8 +21,15 @@ import java.util.zip.ZipOutputStream;
  * make "why does this fixture pass" a question answerable only by a hex editor.
  * Building them in code means the reason each one is valid is written next to
  * it.
+ *
+ * PUBLIC SINCE AI-2, AND ONLY pdf()/docx(). Those two are structurally valid
+ * enough to be IDENTIFIED but not to be PARSED - no page tree, no content
+ * stream, no OPC relationship graph - which makes them exactly the malformed
+ * documents TikaDocumentTextExtractorTest needs. Duplicating them into the
+ * ingest package would have been thirty lines of copy that could silently drift
+ * from the originals these tests are meant to mirror.
  */
-final class DocumentFixtures {
+public final class DocumentFixtures {
 
     private DocumentFixtures() {
     }
@@ -35,7 +42,7 @@ final class DocumentFixtures {
      * one. The trailer and EOF marker are included so the fixture is a
      * structurally sensible document rather than five magic bytes and noise.
      */
-    static byte[] pdf() {
+    public static byte[] pdf() {
         return """
                 %PDF-1.7
                 1 0 obj
@@ -56,7 +63,7 @@ final class DocumentFixtures {
      * that only produced ZIP bytes would pass a weaker detector and silently
      * stop testing the thing that matters.
      */
-    static byte[] docx() {
+    public static byte[] docx() {
         return zipContaining(
                 entry("[Content_Types].xml",
                         "<?xml version=\"1.0\"?><Types xmlns=\"http://schemas.openxmlformats"

@@ -28,6 +28,28 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+
+		<!--
+		    AI-2 dependency versions.
+
+		    VERIFIED AGAINST MAVEN CENTRAL'S OWN maven-metadata.xml, not
+		    guessed:
+		      repo1.maven.org/maven2/org/apache/tika/tika-core/maven-metadata.xml
+		        -> <release>4.0.0-beta-1</release>, latest STABLE = 3.3.2
+		      repo1.maven.org/maven2/dev/langchain4j/langchain4j/maven-metadata.xml
+		        -> <release>1.19.0</release>
+
+		    Both take the newest STABLE release rather than <release>: Tika's
+		    current release marker points at 4.0.0-beta-1, and a beta parser
+		    stack is not something to hand untrusted user uploads to.
+
+		    Neither is managed by spring-boot-starter-parent, and this pom has
+		    no <dependencyManagement> section, so every non-Boot dependency
+		    pins its own version - the same way jjwt (0.12.6) and springdoc
+		    (2.8.16) already do.
+		-->
+		<tika.version>3.3.2</tika.version>
+		<langchain4j.version>1.19.0</langchain4j.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -154,6 +176,94 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
+		<!--
+		     AI-2 - document text extraction.
+
+		     tika-core alone is only the detection and API layer; the actual
+		     PDF and DOCX parsers live in separate artifacts. The standard
+		     package is taken rather than the individual
+		     tika-parser-pdf-module / tika-parser-microsoft-module because two
+		     well-known coordinates carry less risk of a resolution failure
+		     than four less-common ones, and because the module split has
+		     changed between Tika majors.
+
+		     KNOWN COST, AND A DELIBERATE FOLLOW-UP: the standard package
+		     pulls PDFBox, POI and several dozen parsers this project will
+		     never use - tens of megabytes in the fat jar, which matters on a
+		     free Render instance. Slimming it to just the PDF and Microsoft
+		     modules is a worthwhile follow-up once the versions above are
+		     confirmed; it is not done blind.
+
+		     TXT DOES NOT GO THROUGH TIKA AT ALL. AI-1 already proved the
+		     bytes are strict UTF-8 with no control characters, so decoding
+		     them directly is both correct and cheaper than a parser round
+		     trip. See TikaDocumentTextExtractor.
+		-->
+		<dependency>
+			<groupId>org.apache.tika</groupId>
+			<artifactId>tika-core</artifactId>
+			<version>${tika.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.tika</groupId>
+			<artifactId>tika-parsers-standard-package</artifactId>
+			<version>${tika.version}</version>
+		</dependency>
+
+		<!--
+		     AI-2 - text splitting, and ONLY text splitting.
+
+		     DocumentSplitters.recursive() is the one thing here worth a
+		     dependency: splitting on paragraph, then sentence, then word
+		     boundaries with a character overlap, while respecting a maximum
+		     segment size, is fiddly to get right and easy to get subtly wrong
+		     in ways that only show up as poor retrieval much later.
+
+		     DELIBERATELY NOT langchain4j-ollama. AI-0 already built an Ollama
+		     adapter with timeouts, transient/permanent error classification
+		     and Micrometer metrics; /api/embeddings is one more POST against
+		     the same server. Adding their client would put a second HTTP
+		     client, a second configuration surface and a second error model
+		     directly beside ours.
+
+		     DELIBERATELY NOT langchain4j-pgvector. Its EmbeddingStore manages
+		     its own schema, which conflicts with a Flyway-owned schema and
+		     ddl-auto: validate, and it stores and queries vectors through its
+		     own abstraction - which is exactly where this project enforces
+		     per-user ownership in SQL. Ceding that to a library would move a
+		     security boundary out of code we control.
+
+		     TRANSITIVES, read from langchain4j-1.19.0.pom rather than assumed:
+
+		       langchain4j-core 1.19.0  - where the document/segment types live,
+		                                  so DocumentSplitters is on the
+		                                  classpath whichever module holds it.
+		       opennlp-tools 2.5.11     - sentence detection for the recursive
+		                                  splitter. This is the real reason the
+		                                  splitter is worth a dependency.
+		       jackson-* 2.22.x         - SEE THE WARNING BELOW.
+		       slf4j-api 2.0.18         - already present via Boot.
+
+		     JACKSON VERSION INTERACTION - WORTH CHECKING ONCE.
+		     langchain4j 1.19.0 declares jackson-databind/core 2.22.x. Spring
+		     Boot's dependencyManagement wins for transitive dependencies, so
+		     Jackson resolves to whatever Boot 3.5.15 manages - an OLDER 2.x.
+		     LangChain4j therefore runs against a Jackson slightly older than
+		     it was built against.
+
+		     Low risk for this project specifically: the only LangChain4j code
+		     used here is DocumentSplitters, which is pure string manipulation
+		     and touches no JSON at all. Confirm with `mvn dependency:tree
+		     -Dincludes=com.fasterxml.jackson.core` after the first build, and
+		     if a NoSuchMethodError ever appears from LangChain4j internals,
+		     this comment is where to start.
+		-->
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j</artifactId>
+			<version>${langchain4j.version}</version>
 		</dependency>
 
 		<dependency>

@@ -17,6 +17,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,8 +43,36 @@ public abstract class AbstractIntegrationTest {
 
     protected static final String DEFAULT_PASSWORD = "password123";
 
+    /**
+     * PGVECTOR'S OFFICIAL IMAGE, NOT postgres:16-alpine (AI-2).
+     *
+     * pgvector is a compiled C extension: it has to be present in the server
+     * image, and `CREATE EXTENSION vector` in V9 fails outright without it.
+     * There is no runtime install and no pure-SQL workaround.
+     *
+     * SAME POSTGRES MAJOR VERSION, so nothing about the existing suite changes.
+     * `pgvector/pgvector:pg16` is the upstream image built on the official
+     * postgres:16 - Debian-based rather than Alpine, which is the only visible
+     * difference and affects nothing this project relies on.
+     *
+     * COSTS A ONE-TIME ~150MB DOCKER PULL on each machine and in CI. Every
+     * integration test in the suite inherits this container, so the change is
+     * all-or-nothing; running a second container just for the AI tests was
+     * considered and rejected, because two containers per build and two schema
+     * paths is a worse trade than one larger image.
+     *
+     * DOES NOT USE DockerImageName.asCompatibleSubstituteFor. Testcontainers
+     * matches PostgreSQLContainer against the image name, and this image is not
+     * called `postgres` - but it declares itself compatible via the standard
+     * substitute mechanism below, which is the supported way to say "this is
+     * still PostgreSQL" rather than disabling the check.
+     */
+    private static final DockerImageName POSTGRES_IMAGE =
+            DockerImageName.parse("pgvector/pgvector:pg16")
+                    .asCompatibleSubstituteFor("postgres");
+
     private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:16-alpine");
+            new PostgreSQLContainer<>(POSTGRES_IMAGE);
 
     static {
         POSTGRES.start();

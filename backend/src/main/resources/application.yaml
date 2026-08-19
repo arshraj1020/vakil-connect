@@ -194,6 +194,59 @@ vakilconnect:
     document:
       max-file-size: ${AI_DOCUMENT_MAX_FILE_SIZE:10MB}
 
+    # -------------------------------------------------------------------------
+    # Embeddings (AI-2).
+    #
+    # SAME PROVIDER PATTERN AS vakilconnect.ai.provider, and the same safe
+    # default: `stub` produces deterministic hash-derived vectors that need no
+    # server and no model, so a fresh clone and CI both work with no AI setup.
+    # `ollama` uses the real model at vakilconnect.ai.base-url - the SAME server
+    # as chat, which is why there is no second base-url here.
+    #
+    # NO API KEY. Local inference authenticates nothing; the zero-cost
+    # requirement holds through AI-2 unchanged.
+    #
+    # nomic-embed-text: 768 dimensions, ~274MB, CPU-friendly, trained for
+    # RETRIEVAL rather than sentence similarity, 8192-token context so no chunk
+    # is silently truncated. mxbai-embed-large (1024d, ~670MB) is the upgrade if
+    # retrieval quality disappoints - but see the warning on `dimension`.
+    #
+    # DIMENSION IS NOT A FREE-FORM SETTING. It must equal the vector(n) width in
+    # V9, which SQL cannot parameterise. AiDocumentChunkSchemaIT reads the real
+    # column typmod from pg_attribute and asserts they match, so changing one
+    # alone fails the build - correctly, because a new dimension needs an ALTER
+    # COLUMN and a full re-ingest of every document.
+    # -------------------------------------------------------------------------
+    embedding:
+      provider: ${AI_EMBEDDING_PROVIDER:stub}
+      model: ${AI_EMBEDDING_MODEL:nomic-embed-text}
+      dimension: ${AI_EMBEDDING_DIMENSION:768}
+
+    # -------------------------------------------------------------------------
+    # Chunking (AI-2).
+    #
+    # 1200 CHARACTERS, ~250-300 tokens. Legal documents are organised in
+    # clauses, and a clause plus its sub-points usually fits. The common
+    # 500-character default routinely severs a clause from its own conditions -
+    # "the tenant shall pay" without "unless clause 7 applies" - which for legal
+    # text is worse than returning nothing. Much larger dilutes the embedding:
+    # one vector covering four unrelated clauses is close to all and precise
+    # about none.
+    #
+    # 200 OVERLAP, about a sixth. Legal text refers backwards constantly ("such
+    # notice", "the said premises"), so a definition sitting on a boundary must
+    # appear in both neighbours. More would mostly duplicate storage and
+    # embedding time.
+    #
+    # max-chunks-per-document is a COST CEILING, not a quality knob: every chunk
+    # is one local inference call, and without it a maximum-size upload could
+    # occupy the machine for minutes.
+    # -------------------------------------------------------------------------
+    ingestion:
+      chunk-size: ${AI_CHUNK_SIZE:1200}
+      chunk-overlap: ${AI_CHUNK_OVERLAP:200}
+      max-chunks-per-document: ${AI_MAX_CHUNKS_PER_DOCUMENT:2000}
+
 logging:
   level:
     org.springframework.security: DEBUG

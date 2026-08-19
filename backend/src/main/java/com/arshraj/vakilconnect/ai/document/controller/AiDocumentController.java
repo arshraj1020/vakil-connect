@@ -4,6 +4,8 @@ import com.arshraj.vakilconnect.ai.document.dto.DocumentResponse;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentSummaryResponse;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentUploadResponse;
 import com.arshraj.vakilconnect.ai.document.service.AiDocumentService;
+import com.arshraj.vakilconnect.ai.ingest.DocumentIngestionService;
+import com.arshraj.vakilconnect.ai.ingest.IngestionResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -51,9 +53,12 @@ import java.util.UUID;
 public class AiDocumentController {
 
     private final AiDocumentService documentService;
+    private final DocumentIngestionService ingestionService;
 
-    public AiDocumentController(AiDocumentService documentService) {
+    public AiDocumentController(AiDocumentService documentService,
+                                DocumentIngestionService ingestionService) {
         this.documentService = documentService;
+        this.ingestionService = ingestionService;
     }
 
     /**
@@ -125,5 +130,43 @@ public class AiDocumentController {
 
         documentService.deleteOwnDocument(authentication.getName(), documentId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Extracts, chunks and embeds one of the caller's own documents (AI-2).
+     *
+     * SECURITY: identical to every other route here. Authenticated by
+     * SecurityConfig's default-deny; the caller comes from the security context
+     * only; another user's id yields 404, not 403, so the endpoint is not an
+     * oracle for what other users hold.
+     *
+     * STATES: allowed from PENDING, FAILED and READY. READY is deliberate -
+     * reprocessing after a chunk-size or model change is a legitimate
+     * operation, and it is safe because stage 3 REPLACES chunks rather than
+     * appending. PROCESSING is refused with 409, which is the conditional
+     * UPDATE's row count surfacing rather than a check-then-act race.
+     *
+     * IDEMPOTENT: running it twice on an unchanged document produces
+     * byte-identical chunks in the same order, because extraction,
+     * normalization and chunking are all deterministic.
+     *
+     * SYNCHRONOUS, so the response arrives when indexing is done. Bounded by
+     * AI-1's 10MB upload cap; a large document against a local CPU model can
+     * take tens of seconds, which is the accepted cost of not introducing an
+     * executor, duplicate-run control and a stuck-state sweeper in the same
+     * phase that introduces the pipeline.
+     *
+     * 200, NOT 201. Nothing new is addressable afterwards - the document
+     * already existed and its URI is unchanged. The chunks are internal to
+     * retrieval and have no public URI in AI-2.
+     *
+     * RETURNS COUNTS AND STATE ONLY. No chunk text, no preview, no embeddings.
+     * NOT A Q&A ENDPOINT - AI-2 has no retrieval and no chat.
+     */
+    @PostMapping("/{documentId}/process")
+    public IngestionResult process(Authentication authentication,
+                                   @PathVariable UUID documentId) {
+
+        return ingestionService.process(authentication.getName(), documentId);
     }
 }
