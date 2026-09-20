@@ -26,6 +26,7 @@ export const ROUTES = {
   CLIENT_DASHBOARD: "/client/dashboard",
   CLIENT_PROFILE: "/client/profile",
   CLIENT_APPOINTMENTS: "/client/appointments",
+  CLIENT_DOCUMENTS: "/client/documents",
   /** Booking flow. Not built yet; the lawyer profile CTA already points here. */
   bookAppointment: (lawyerId: string) =>
     `/client/appointments/book?lawyerId=${lawyerId}` as const,
@@ -36,6 +37,7 @@ export const ROUTES = {
   LAWYER_APPOINTMENTS: "/lawyer/appointments",
   LAWYER_AVAILABILITY: "/lawyer/availability",
   LAWYER_REVIEWS: "/lawyer/reviews",
+  LAWYER_DOCUMENTS: "/lawyer/documents",
 
   /* Admin */
   ADMIN_DASHBOARD: "/admin/dashboard",

@@ -2,6 +2,7 @@ import {
   CalendarClock,
   CalendarDays,
   ClipboardList,
+  FileStack,
   LayoutDashboard,
   MessageSquareText,
   Search,
@@ -42,6 +43,7 @@ export const NAV_BY_ROLE: Record<Role, readonly NavItem[]> = {
       href: ROUTES.CLIENT_APPOINTMENTS,
       icon: CalendarDays,
     },
+    { label: "Documents", href: ROUTES.CLIENT_DOCUMENTS, icon: FileStack },
     { label: "Profile", href: ROUTES.CLIENT_PROFILE, icon: UserCog },
   ],
 
@@ -62,6 +64,7 @@ export const NAV_BY_ROLE: Record<Role, readonly NavItem[]> = {
       href: ROUTES.LAWYER_REVIEWS,
       icon: MessageSquareText,
     },
+    { label: "Documents", href: ROUTES.LAWYER_DOCUMENTS, icon: FileStack },
     { label: "Profile", href: ROUTES.LAWYER_PROFILE, icon: UserCog },
   ],
 

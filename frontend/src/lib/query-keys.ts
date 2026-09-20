@@ -102,6 +102,25 @@ const referenceKeys = {
   specializations: () => [...referenceKeys.all, "specializations"] as const,
 };
 
+/**
+ * AI document intelligence (AI-1 through AI-4).
+ *
+ * `analysis` and `answer` are NOT cached as queries, deliberately: both are
+ * generation results from an LLM, not stored resources, and neither is
+ * idempotent - re-running either can legitimately produce different prose from
+ * the same input. They are issued as mutations instead (see
+ * `use-analyze-document.ts` / `use-ask-question.ts`), and this factory exists
+ * only so `documents.detail(id)` can be invalidated after upload, processing
+ * or deletion.
+ */
+const aiDocumentKeys = {
+  all: ["ai-documents"] as const,
+  list: () => [...aiDocumentKeys.all, "list"] as const,
+  details: () => [...aiDocumentKeys.all, "detail"] as const,
+  detail: (documentId: string) =>
+    [...aiDocumentKeys.details(), documentId] as const,
+};
+
 export const queryKeys = {
   auth: authKeys,
   lawyers: lawyerKeys,
@@ -110,6 +129,7 @@ export const queryKeys = {
   dashboard: dashboardKeys,
   admin: adminKeys,
   reference: referenceKeys,
+  aiDocuments: aiDocumentKeys,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

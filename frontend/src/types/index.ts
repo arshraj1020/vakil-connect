@@ -11,3 +11,4 @@ export * from "./appointment";
 export * from "./review";
 export * from "./admin";
 export * from "./reference";
+export * from "./ai-document";
