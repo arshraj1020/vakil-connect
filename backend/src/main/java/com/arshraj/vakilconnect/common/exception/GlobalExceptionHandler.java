@@ -330,6 +330,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * The document cannot be analysed in its current state (AI-4). 409, with a
+     * code distinct from DOCUMENT_ALREADY_PROCESSING because the client's remedy
+     * is distinct: run processing, rather than wait for it.
+     *
+     * The message comes from a fixed constant on the exception, so nothing
+     * derived from a filename or from document content can reach the body.
+     */
+    @ExceptionHandler(DocumentNotAnalyzableException.class)
+    public ResponseEntity<ErrorResponse> handleDocumentNotAnalyzable(
+            DocumentNotAnalyzableException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request,
+                DocumentNotAnalyzableException.CODE);
+    }
+
+    /**
      * A database constraint rejected the write.
      *
      * THIS IS THE K1 DECISION. A concurrent second token issue is stopped by the

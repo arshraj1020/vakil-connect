@@ -1,5 +1,7 @@
 package com.arshraj.vakilconnect.ai.document.controller;
 
+import com.arshraj.vakilconnect.ai.analysis.DocumentAnalysis;
+import com.arshraj.vakilconnect.ai.analysis.DocumentAnalysisService;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentResponse;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentSummaryResponse;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentUploadResponse;
@@ -60,13 +62,16 @@ public class AiDocumentController {
     private final AiDocumentService documentService;
     private final DocumentIngestionService ingestionService;
     private final RagService ragService;
+    private final DocumentAnalysisService analysisService;
 
     public AiDocumentController(AiDocumentService documentService,
                                 DocumentIngestionService ingestionService,
-                                RagService ragService) {
+                                RagService ragService,
+                                DocumentAnalysisService analysisService) {
         this.documentService = documentService;
         this.ingestionService = ingestionService;
         this.ragService = ragService;
+        this.analysisService = analysisService;
     }
 
     /**
@@ -215,5 +220,56 @@ public class AiDocumentController {
                          @Valid @RequestBody AskQuestionRequest request) {
 
         return ragService.ask(authentication.getName(), request.question());
+    }
+
+    /**
+     * Structured analysis of ONE of the caller's own documents (AI-4).
+     *
+     * PER-DOCUMENT, WHERE /ask IS CORPUS-WIDE, and the difference is real rather
+     * than cosmetic. A question searches everything the user owns because they
+     * may not know which upload answers it; an analysis is a statement ABOUT a
+     * particular document, so the document is the resource and its id belongs in
+     * the path. That also means this route has a cross-user case to get right,
+     * which /ask does not.
+     *
+     * SECURITY: authenticated by SecurityConfig's default-deny, like every route
+     * here. The owner comes from the security context only - the path carries a
+     * document id and nothing else, so there is no user id for a client to
+     * assert. Ownership is enforced in the WHERE clause of the metadata read,
+     * BEFORE any document text is loaded, so another user's content is never
+     * read out of the database at all.
+     *
+     * ANOTHER USER'S ID RETURNS 404, NOT 403, matching every other route on this
+     * controller. A 403 would confirm the document exists.
+     *
+     * NO REQUEST BODY. There is nothing for the caller to supply: the document
+     * is named by the path and the owner by the token. A body would only add
+     * fields that the service would have to re-verify or ignore.
+     *
+     * 200, NOT 201. Nothing is created and nothing new is addressable
+     * afterwards; the analysis is derived, not stored. Running it twice is
+     * therefore safe, and will produce two possibly-different analyses of the
+     * same text - generation is not deterministic, and this endpoint does not
+     * pretend otherwise by caching one.
+     *
+     * SYNCHRONOUS, so the response arrives when the model has finished. Against
+     * a local CPU model that is tens of seconds, which is the accepted cost of
+     * not introducing an executor and a job table in a phase that is meant to be
+     * small.
+     *
+     * 409 WHEN THE DOCUMENT HAS NOT BEEN PROCESSED. Analysis reads AI-2's
+     * chunks; a PENDING document has none, and the remedy is to call
+     * {@code /process} rather than to retry this.
+     *
+     * RETURNS STRUCTURED FIELDS, NEVER A RAW MODEL BLOB. The model's reply is
+     * parsed into six named content fields; {@code documentId} and
+     * {@code documentName} come from the database row, so nothing the model
+     * writes can change which document the response claims to describe.
+     */
+    @PostMapping("/{documentId}/analyze")
+    public DocumentAnalysis analyze(Authentication authentication,
+                                    @PathVariable UUID documentId) {
+
+        return analysisService.analyze(authentication.getName(), documentId);
     }
 }

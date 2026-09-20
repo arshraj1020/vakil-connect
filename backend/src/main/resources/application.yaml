@@ -278,6 +278,39 @@ vakilconnect:
       max-context-characters: ${AI_MAX_CONTEXT_CHARACTERS:8000}
       max-question-characters: ${AI_MAX_QUESTION_CHARACTERS:4000}
 
+    # -------------------------------------------------------------------------
+    # Document analysis (AI-4).
+    #
+    # NO PROVIDER KEY AND NO SECOND MODEL. Analysis reuses the LlmClient
+    # selected by vakilconnect.ai.provider above, so it inherits the stub
+    # default and the zero-cost guarantee unchanged. There is nothing to
+    # configure to make this feature work locally that was not already
+    # configured for AI-0.
+    #
+    # max-context-characters IS DELIBERATELY LARGER THAN retrieval's 8000.
+    # Retrieval can afford to be stingy - it only needs the passages that
+    # answer one question. Analysis is asked who the parties are, what the
+    # dates are and what the obligations are, which is a whole-document
+    # question, so cutting it short costs real answers. It is still a ceiling:
+    # a large upload chunks into thousands of passages and llama3.2's window is
+    # not elastic. When the budget binds, the response says truncated=true
+    # rather than presenting a reading of the first few pages as a reading of
+    # the document.
+    #
+    # THE OTHER THREE BOUND THE MODEL'S OUTPUT, NOT ITS INPUT, and they are a
+    # control rather than formatting. The reply is untrusted text that becomes
+    # an HTTP response body; small local models loop on lists, so without a
+    # ceiling one degenerate generation would serialise thousands of "parties".
+    # Excess list entries are dropped in the model's own order; an over-long
+    # entry is truncated, because a clipped obligation still tells the user
+    # something and an absent one does not.
+    # -------------------------------------------------------------------------
+    analysis:
+      max-context-characters: ${AI_ANALYSIS_MAX_CONTEXT_CHARACTERS:12000}
+      max-summary-characters: ${AI_ANALYSIS_MAX_SUMMARY_CHARACTERS:2000}
+      max-list-items: ${AI_ANALYSIS_MAX_LIST_ITEMS:20}
+      max-item-characters: ${AI_ANALYSIS_MAX_ITEM_CHARACTERS:400}
+
 logging:
   level:
     org.springframework.security: DEBUG

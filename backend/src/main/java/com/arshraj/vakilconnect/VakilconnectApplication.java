@@ -1,6 +1,7 @@
 package com.arshraj.vakilconnect;
 
 import com.arshraj.vakilconnect.ai.AiProperties;
+import com.arshraj.vakilconnect.ai.analysis.AiAnalysisProperties;
 import com.arshraj.vakilconnect.ai.document.config.AiDocumentProperties;
 import com.arshraj.vakilconnect.ai.embedding.AiEmbeddingProperties;
 import com.arshraj.vakilconnect.ai.ingest.AiIngestionProperties;
@@ -25,7 +26,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableConfigurationProperties({ IdentityProperties.class, EmailProperties.class,
 		AiProperties.class, AiDocumentProperties.class,
 		AiEmbeddingProperties.class, AiIngestionProperties.class,
-		AiRetrievalProperties.class })
+		AiRetrievalProperties.class, AiAnalysisProperties.class })
 @EnableScheduling
 public class VakilconnectApplication {
 

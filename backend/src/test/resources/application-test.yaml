@@ -125,6 +125,25 @@ vakilconnect:
       max-context-characters: 8000
       max-question-characters: 4000
 
+    # Production values for the output bounds, so the parser is tested at the
+    # limits it really enforces.
+    #
+    # THE CONTEXT BUDGET IS DELIBERATELY NOT PRODUCTION'S 12000. At 12000 a
+    # truncation test would have to seed a document of more than twelve
+    # thousand characters, which means ~11 chunks and ~11 stub embedding calls
+    # per run, for a property that is about arithmetic rather than about scale.
+    # 3000 exercises the same branch with a three-chunk document.
+    #
+    # Set here rather than with @TestPropertySource on the one class that needs
+    # it: an inline property override forks a SECOND Spring context, and every
+    # context in this suite starts Flyway against Testcontainers. Same
+    # reasoning as the tiny upload limit above.
+    analysis:
+      max-context-characters: 3000
+      max-summary-characters: 2000
+      max-list-items: 20
+      max-item-characters: 400
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz
