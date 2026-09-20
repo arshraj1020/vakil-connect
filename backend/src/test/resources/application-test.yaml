@@ -144,6 +144,16 @@ vakilconnect:
       max-list-items: 20
       max-item-characters: 400
 
+    # A small per-document budget for the same reason analysis's is 3000
+    # rather than production's 12000: a truncation test needs only a handful
+    # of chunks per document, not thousands of characters, to exercise the
+    # branch.
+    comparison:
+      max-context-characters-per-document: 1500
+      max-summary-characters: 2000
+      max-list-items: 20
+      max-item-characters: 400
+
 # Fixed, test-only signing key (the app requires JWT_SECRET with no default).
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1rZXktZm9yLWludGVncmF0aW9uLXRlc3Rz

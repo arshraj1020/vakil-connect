@@ -2,6 +2,9 @@ package com.arshraj.vakilconnect.ai.document.controller;
 
 import com.arshraj.vakilconnect.ai.analysis.DocumentAnalysis;
 import com.arshraj.vakilconnect.ai.analysis.DocumentAnalysisService;
+import com.arshraj.vakilconnect.ai.compare.DocumentComparison;
+import com.arshraj.vakilconnect.ai.compare.DocumentComparisonRequest;
+import com.arshraj.vakilconnect.ai.compare.DocumentComparisonService;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentResponse;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentSummaryResponse;
 import com.arshraj.vakilconnect.ai.document.dto.DocumentUploadResponse;
@@ -63,15 +66,18 @@ public class AiDocumentController {
     private final DocumentIngestionService ingestionService;
     private final RagService ragService;
     private final DocumentAnalysisService analysisService;
+    private final DocumentComparisonService comparisonService;
 
     public AiDocumentController(AiDocumentService documentService,
                                 DocumentIngestionService ingestionService,
                                 RagService ragService,
-                                DocumentAnalysisService analysisService) {
+                                DocumentAnalysisService analysisService,
+                                DocumentComparisonService comparisonService) {
         this.documentService = documentService;
         this.ingestionService = ingestionService;
         this.ragService = ragService;
         this.analysisService = analysisService;
+        this.comparisonService = comparisonService;
     }
 
     /**
@@ -271,5 +277,52 @@ public class AiDocumentController {
                                     @PathVariable UUID documentId) {
 
         return analysisService.analyze(authentication.getName(), documentId);
+    }
+
+    /**
+     * Compares two of the caller's own documents (AI-5).
+     *
+     * A LITERAL SEGMENT, `/compare`, NOT A PATH VARIABLE - deliberately, so it
+     * cannot be confused with `/{documentId}` at the routing layer, and so a
+     * client reading this API can tell at a glance that two ids are required
+     * rather than one. Spring's path matching already disambiguates a literal
+     * segment from a variable one at the same position, the same way `/ask`
+     * coexists with `GET /{documentId}` today.
+     *
+     * TWO IDS IN THE BODY, UNLIKE /ask AND /analyze. Neither of those routes
+     * needs a client-supplied id - /ask searches everything the caller owns,
+     * /analyze names its one document in the path - but a comparison
+     * inherently names two specific resources, so they belong in the request.
+     * Both are RE-VERIFIED against the caller's ownership inside the service
+     * regardless of what is supplied here, exactly like every id anywhere in
+     * this controller; the body is a selection, never an authorization.
+     *
+     * SECURITY: authenticated by SecurityConfig's default-deny, like every
+     * route here. EITHER id belonging to somebody else returns 404, not 403 -
+     * same anti-enumeration convention - and BOTH documents are loaded before
+     * either failure is reported, so pairing an owned id with an unowned one
+     * costs and reveals the same as pairing two unowned ones.
+     *
+     * 200, NOT 201, for the same reason /analyze is: nothing is created, the
+     * comparison is derived and not stored, and running it twice may
+     * legitimately produce different prose from the same two documents.
+     *
+     * 400 WHEN THE SAME ID IS GIVEN TWICE. A document cannot be meaningfully
+     * compared with itself; the service refuses before either lookup runs.
+     *
+     * 409 WHEN EITHER DOCUMENT HAS NOT BEEN PROCESSED - identical remedy to
+     * /analyze: call {@code /process} on the unprocessed one first.
+     *
+     * RETURNS STRUCTURED FIELDS, NEVER A RAW MODEL BLOB. Both documents'
+     * identity comes from the database rows loaded before the model was
+     * called; the model contributes only the four content fields the parser
+     * reads by name.
+     */
+    @PostMapping("/compare")
+    public DocumentComparison compare(Authentication authentication,
+                                      @Valid @RequestBody DocumentComparisonRequest request) {
+
+        return comparisonService.compare(authentication.getName(),
+                request.documentId(), request.compareToDocumentId());
     }
 }

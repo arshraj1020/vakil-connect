@@ -311,6 +311,30 @@ vakilconnect:
       max-list-items: ${AI_ANALYSIS_MAX_LIST_ITEMS:20}
       max-item-characters: ${AI_ANALYSIS_MAX_ITEM_CHARACTERS:400}
 
+    # -------------------------------------------------------------------------
+    # Document comparison (AI-5).
+    #
+    # NO NEW PROVIDER, NO NEW MODEL. Comparison reuses the LlmClient selected by
+    # vakilconnect.ai.provider above and the chunks AI-2 already produced, so it
+    # inherits the stub default and the zero-cost guarantee unchanged.
+    #
+    # max-context-characters-per-document IS SMALLER THAN ANALYSIS'S 12000,
+    # deliberately - a comparison holds TWO documents in the prompt at once, so
+    # each gets a share of what a single-document analysis would give the whole
+    # document. 6000 per side keeps the combined prompt in the same neighbourhood
+    # as a single AI-4 analysis rather than doubling it.
+    #
+    # The other three bound the model's OUTPUT for the same reason AI-4's do:
+    # the reply is untrusted text that becomes an HTTP response body, and a
+    # local model that loops on a list must not be allowed to serialise
+    # thousands of "differences".
+    # -------------------------------------------------------------------------
+    comparison:
+      max-context-characters-per-document: ${AI_COMPARISON_MAX_CONTEXT_CHARACTERS:6000}
+      max-summary-characters: ${AI_COMPARISON_MAX_SUMMARY_CHARACTERS:2000}
+      max-list-items: ${AI_COMPARISON_MAX_LIST_ITEMS:20}
+      max-item-characters: ${AI_COMPARISON_MAX_ITEM_CHARACTERS:400}
+
 logging:
   level:
     org.springframework.security: DEBUG
