@@ -3,9 +3,12 @@
 Running VakilConnect locally, and what has to be true before it runs in
 production.
 
-**Honest status:** there is no Dockerfile, no compose file and no CI pipeline in
-this repository yet. Everything below is a manual procedure. That gap is
-tracked in the [Release audit](#release-status) at the end.
+**Status:** a Dockerfile per service, a root `docker-compose.yml`, and a GitHub
+Actions pipeline running both suites on every push now exist. The manual
+procedure below still works and is the one to follow for local development;
+`docker compose up --build` is the fastest way to run the whole stack without
+installing Postgres, Node or a JDK by hand. See the
+[Release audit](#release-status) for what is still open.
 
 ---
 
@@ -37,16 +40,33 @@ Docker is not required to *run* the app, only to test it.
 
 ## Local development
 
+### Quickest path: Docker Compose
+
+```bash
+cp backend/.env.example backend/.env        # then set JWT_SECRET at minimum
+cp frontend/.env.example frontend/.env.local
+docker compose up --build
+```
+
+Backend on `http://localhost:8080`, frontend on `http://localhost:3000`,
+Postgres (pgvector) on `5432`. This is for local development and demos, not a
+production manifest — no TLS termination, no orchestration, no secret
+management beyond the `.env` files above.
+
+The sections below are the manual, no-Docker path — useful for running the
+backend or frontend on their own, or for understanding what the Compose file
+is automating.
+
 ### 1. Database
 
 ```bash
 createdb vakilconnect
 ```
 
-That is the whole step. **Do not create tables by hand and do not run
-`database/schema.sql`** — that file is a historical design artefact and no
-longer matches the migrations. Flyway owns the schema and applies V1–V6 on
-first startup.
+That is the whole step. **Do not create tables by hand.** Flyway owns the
+schema and applies every migration in `backend/src/main/resources/db/migration`
+on first startup. (`database/schema.sql`, a historical pre-Flyway artefact
+that no longer matched the migrations, has been removed.)
 
 ### 2. Backend
 
@@ -76,7 +96,8 @@ set -a && source .env && set +a
 The API is on `http://localhost:8080`, Swagger UI on
 `http://localhost:8080/swagger-ui.html`, and actuator on `http://localhost:9091`.
 
-On first start Flyway applies six migrations and `AdminBootstrapRunner` creates
+On first start Flyway applies every migration in `db/migration` (V1–V9) and
+`AdminBootstrapRunner` creates
 an ADMIN account if `ADMIN_EMAIL` does not already exist. Admin accounts cannot
 be created through the public API, so this is the only route to the first one.
 
@@ -101,7 +122,7 @@ itself looks perfectly healthy.
 ```bash
 # backend
 ./mvnw spring-boot:run          # run
-./mvnw clean test               # 224 integration tests (needs Docker)
+./mvnw clean test               # 837 tests (needs Docker for Testcontainers)
 ./mvnw clean package            # build the jar
 
 # frontend
@@ -145,7 +166,7 @@ Full annotated list: [`backend/.env.example`](backend/.env.example).
 
 ## Running the tests
 
-**Backend — 224 integration tests, 16 files.**
+**Backend — 837 tests.**
 
 ```bash
 cd backend && ./mvnw clean test
@@ -275,13 +296,17 @@ Only `health`, `info` and `prometheus` are exposed. `env`, `beans`, `heapdump`
 and `threaddump` are off, and the exposure list is the security boundary once
 the port is reachable — do not widen it.
 
-**2. Spring Security logs at DEBUG.**
+**2. Spring Security logging level.**
 
-`application.yaml` sets `logging.level.org.springframework.security: DEBUG`,
-which logs authentication internals on every request. Override in production:
+`application.yaml` now defaults `logging.level.org.springframework.security`
+to `WARN` (it used to be `DEBUG` unconditionally, relying on
+`application-prod.yaml` to override it back to `INFO` - a deployment that
+forgot to activate the `prod` profile would have silently logged
+authentication internals on every request). Override with `SECURITY_LOG_LEVEL`
+if you need more detail while debugging a specific environment:
 
 ```bash
-LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY=WARN
+SECURITY_LOG_LEVEL=DEBUG
 ```
 
 ### Security posture
@@ -373,14 +398,16 @@ See the production section.
 
 ## Release status
 
-Blocking a 1.0 tag:
+Formerly blocking a 1.0 tag, now resolved:
 
-- [ ] No Dockerfile or compose file
-- [ ] No CI pipeline — every check to date has been run by hand
-- [ ] `database/schema.sql` is stale and contradicts the migrations; delete or
-      clearly mark it
-- [ ] Security `DEBUG` logging is on by default
+- [x] Dockerfile per service (`backend/Dockerfile`, `frontend/Dockerfile`) and
+      a root `docker-compose.yml`
+- [x] CI pipeline (`.github/workflows/ci.yml`) running both suites on every
+      push and pull request to `main`
+- [x] `database/schema.sql` removed — it predated Flyway and no longer matched
+      the migrations
+- [x] Security logging is `WARN` by default, not `DEBUG`
 
 Deliberate limitations, documented rather than hidden: no payment processing,
-no password reset, no email verification, no token refresh, manual lawyer
-verification. See the README for the full list.
+no token refresh, manual lawyer verification. See the README for the full
+list.

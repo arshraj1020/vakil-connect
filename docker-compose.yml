@@ -1,0 +1,62 @@
+# Local, single-host compose for running the whole stack without installing
+# Postgres/Node/JDK by hand. Not a production deployment manifest - there is
+# no orchestration, TLS termination, or secret management here, matching the
+# "no compose file" gap DEPLOYMENT.md tracked before this.
+#
+# Usage:
+#   cp backend/.env.example backend/.env      # then set JWT_SECRET at minimum
+#   cp frontend/.env.example frontend/.env.local
+#   docker compose up --build
+#
+# JWT_SECRET has no default anywhere in this repo, deliberately (see
+# backend/.env.example) - compose does not work around that. Set it in
+# backend/.env before starting, or the backend container will fail to start,
+# which is the same fail-fast behaviour as running it directly.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: vakilconnect
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - vakilconnect-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # Overrides backend/.env so the backend always reaches the compose
+      # network's db service by name, regardless of what a developer's .env
+      # points at for running the jar directly on their host.
+      DB_URL: jdbc:postgresql://db:5432/vakilconnect
+    ports:
+      - "8080:8080"
+      - "9091:9091"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+    env_file:
+      - ./frontend/.env.local
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  vakilconnect-db-data:

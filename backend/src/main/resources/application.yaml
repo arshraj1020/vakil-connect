@@ -337,7 +337,13 @@ vakilconnect:
 
 logging:
   level:
-    org.springframework.security: DEBUG
+    # WARN by default - see backend/DEPLOYMENT.md "Two settings that are wrong
+    # by default for production". This used to be DEBUG unconditionally, which
+    # logs authentication internals on every request; that was safe only
+    # because application-prod.yaml overrode it back to INFO, which meant a
+    # deployment that forgot to activate the prod profile would silently log
+    # security internals in production. Overridable per environment:
+    org.springframework.security: ${SECURITY_LOG_LEVEL:WARN}
 
 jwt:
   secret: ${JWT_SECRET}

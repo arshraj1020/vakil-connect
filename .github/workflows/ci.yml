@@ -1,0 +1,68 @@
+name: CI
+
+# Runs both suites on every push and pull request against main - closing the
+# "No CI pipeline, every check to date has been run by hand" gap tracked in
+# DEPLOYMENT.md's release status. Two independent jobs so a frontend-only
+# change does not wait on the JVM, and vice versa.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: mvn clean test
+        # Testcontainers starts a real pgvector/pgvector:pg16 container - the
+        # ubuntu-latest runner has Docker preinstalled, so no extra service
+        # container is declared here. JWT_SECRET is required at startup by
+        # design (see backend/.env.example); the test profile supplies its
+        # own fixed value via application-test.yaml, not this env block.
+        run: ./mvnw --batch-mode clean test
+
+      - name: Upload surefire reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: npm run build
+        env:
+          # Build-time only, per next.config.ts - CI never serves traffic, so
+          # any syntactically valid origin proves the build step itself works.
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+        run: npm run build
