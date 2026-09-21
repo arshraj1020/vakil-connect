@@ -57,7 +57,8 @@ class AiPropertiesTest {
                 "vakilconnect.ai.temperature=0.2",
                 "vakilconnect.ai.max-output-tokens=1024",
                 "vakilconnect.ai.connect-timeout=PT5S",
-                "vakilconnect.ai.read-timeout=PT120S");
+                "vakilconnect.ai.read-timeout=PT120S",
+                "vakilconnect.ai.api-key=");
     }
 
     @Test
@@ -191,13 +192,24 @@ class AiPropertiesTest {
      * {@code apiKey}, {@code gcpCred} or {@code zzz} all fail identically.
      */
     private static final Set<String> REVIEWED_COMPONENTS = Set.of(
-            "provider",          // stub or ollama
+            "provider",          // stub, ollama, or gemini
             "baseUrl",           // http://localhost:11434 - a local address
             "model",             // a public model tag such as llama3.2
             "temperature",       // a number
             "maxOutputTokens",   // a COUNT OF TEXT TOKENS. Not a credential.
             "connectTimeout",    // a Duration
-            "readTimeout");      // a Duration
+            "readTimeout",       // a Duration
+            /*
+             * apiKey IS THE CREDENTIAL THIS TEST EXISTS TO CATCH, ADDED
+             * DELIBERATELY. gemini is a hosted provider and needs one; the
+             * review this test enforces already happened - see
+             * AiProperties.toString(), which redacts it, exactly as this
+             * class's own comment above prescribes as step 2. It stays in
+             * UNAMBIGUOUS_CREDENTIAL_TERMS below on purpose: that test
+             * asserts the heuristic still fires on this exact name, which is
+             * what proves the redaction was not forgotten.
+             */
+            "apiKey");
 
     /**
      * Credential terms that are UNAMBIGUOUS IN THIS CODEBASE.
@@ -320,15 +332,19 @@ class AiPropertiesTest {
     @Test
     @DisplayName("toString() is safe to log because nothing here is secret")
     void toStringIsSafe() {
-        // No override exists, and none is needed - there is no credential to
-        // hide. This asserts the useful half: the diagnostics are actually
-        // present, so logging the bound object is worth doing.
-        withDefaults().run(context -> {
-            String rendered = context.getBean(AiProperties.class).toString();
+        // The diagnostics are present (useful for logging the bound object)
+        // but apiKey never appears in the rendered form, even when set - the
+        // override this class's javadoc requires.
+        withDefaults()
+                .withPropertyValues("vakilconnect.ai.api-key=sk-real-secret-value")
+                .run(context -> {
+                    String rendered = context.getBean(AiProperties.class).toString();
 
-            assertThat(rendered).contains("stub");
-            assertThat(rendered).contains("llama3.2");
-            assertThat(rendered).contains("11434");
-        });
+                    assertThat(rendered).contains("stub");
+                    assertThat(rendered).contains("llama3.2");
+                    assertThat(rendered).contains("11434");
+                    assertThat(rendered).contains("<redacted>");
+                    assertThat(rendered).doesNotContain("sk-real-secret-value");
+                });
     }
 }

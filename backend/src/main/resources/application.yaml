@@ -140,16 +140,27 @@ vakilconnect:
   # Design: docs/AI-ARCHITECTURE-AND-ROADMAP.md
   # -------------------------------------------------------------------------
   ai:
+    # `stub`, `ollama`, or `gemini`. gemini is the HOSTED fallback for an
+    # environment with no reachable Ollama server (a deployed backend such as
+    # Render has no localhost to dial) - see AiProperties and GeminiLlmClient.
     provider: ${AI_PROVIDER:stub}
 
     # Ollama's default listen address. Trailing slashes are stripped at bind
-    # time, so http://localhost:11434/ is the same configuration.
+    # time, so http://localhost:11434/ is the same configuration. Unused when
+    # provider=gemini.
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
 
     # Must already be pulled: `ollama pull llama3.2`. A property, not a
     # constant, because which model is sensible depends on the machine -
-    # 3B on a laptop, something larger with a GPU.
+    # 3B on a laptop, something larger with a GPU. When provider=gemini this
+    # names a Gemini model instead, e.g. gemini-2.5-flash.
     model: ${AI_MODEL:llama3.2}
+
+    # API key for provider=gemini. Blank (the default) for stub and ollama,
+    # which authenticate nothing. Get a free key at
+    # https://aistudio.google.com/apikey. NEVER logged - see AiProperties'
+    # redacting toString().
+    api-key: ${AI_API_KEY:}
 
     # Low by default. Legal answers should be reproducible and boring; this is
     # not a creative-writing workload.
@@ -218,7 +229,12 @@ vakilconnect:
     # COLUMN and a full re-ingest of every document.
     # -------------------------------------------------------------------------
     embedding:
+      # `stub`, `ollama`, or `gemini`. gemini reuses vakilconnect.ai.api-key
+      # above rather than declaring its own - see GeminiEmbeddingClient.
       provider: ${AI_EMBEDDING_PROVIDER:stub}
+      # When provider=gemini this names a Gemini embedding model instead, e.g.
+      # gemini-embedding-2 - which is asked to return exactly `dimension`
+      # values via output_dimensionality, so it still fits vector(768).
       model: ${AI_EMBEDDING_MODEL:nomic-embed-text}
       dimension: ${AI_EMBEDDING_DIMENSION:768}
 

@@ -19,18 +19,15 @@ import java.time.Duration;
  * as {@code @DefaultValue} here - one visible, greppable, environment-
  * overridable source per key.
  *
- * THERE IS NO CREDENTIAL COMPONENT, AND THAT IS THE POINT OF THE WHOLE PROVIDER
- * CHOICE. Ollama runs locally and authenticates nothing, so VakilConnect's AI
- * layer requires no API key, no billing account and no paid service to be fully
- * usable. Nothing in this record is secret, which is why - unlike
- * EmailProperties - it does NOT override toString().
+ * OLLAMA (THE DEFAULT REAL PROVIDER) NEEDS NO CREDENTIAL: it runs locally and
+ * authenticates nothing, so VakilConnect's AI layer is fully usable with no API
+ * key, no billing account and no paid service. GEMINI IS THE EXCEPTION: a
+ * hosted provider, added so the feature works from a deployed environment (such
+ * as Render) where nothing can reach a local Ollama server. Its key lives in
+ * {@code apiKey} below, blank for every other provider.
  *
- * IF A PAID PROVIDER IS ADDED LATER AND THIS RECORD GAINS AN apiKey COMPONENT,
- * IT MUST ALSO GAIN A REDACTING toString(). A record's generated toString()
- * prints every component, so the credential would otherwise land in any log
- * line, stack trace or debugger frame that touched this object.
- * {@code AiPropertiesTest.declaresNoCredentialComponent} fails the build if a
- * credential-shaped component appears, so this cannot be forgotten quietly.
+ * apiKey IS WHY THIS RECORD OVERRIDES toString() - see the override below and
+ * EmailProperties, which does the same for the identical reason.
  *
  * WHY THE MODEL AND BASE URL ARE CONFIGURATION AND NOT CONSTANTS. Ollama serves
  * on a port the developer controls and hosts whichever models they have pulled.
@@ -112,11 +109,26 @@ public record AiProperties(
          * process restarts.
          */
         @NotNull
-        Duration readTimeout
+        Duration readTimeout,
+
+        /*
+         * API key for a HOSTED provider such as Gemini. Blank for stub and
+         * ollama, which authenticate nothing - required only when
+         * provider=gemini, and the fail-fast check for that lives in
+         * GeminiLlmClient's constructor, the same pattern EmailProperties.apiKey
+         * uses for ResendEmailSender. NOT @NotBlank here: making it mandatory
+         * would stop every local-inference developer's application from
+         * starting.
+         *
+         * ADDING THIS FIELD IS WHY AiProperties NOW HAS A REDACTING toString()
+         * BELOW - see EmailProperties for the identical hazard and fix.
+         */
+        String apiKey
 ) {
 
     public static final String STUB = "stub";
     public static final String OLLAMA = "ollama";
+    public static final String GEMINI = "gemini";
 
     /**
      * Strips trailing slashes from the base URL at BIND time, so every consumer
@@ -135,5 +147,24 @@ public record AiProperties(
                 baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
             }
         }
+    }
+
+    /**
+     * REDACTED, the same hazard EmailProperties.toString() exists to close.
+     *
+     * A record's generated toString() prints every component, so once apiKey
+     * exists a Gemini key would otherwise land in any log line, stack trace or
+     * debugger frame that formatted this object.
+     */
+    @Override
+    public String toString() {
+        return "AiProperties{provider=" + provider
+                + ", baseUrl=" + baseUrl
+                + ", model=" + model
+                + ", temperature=" + temperature
+                + ", maxOutputTokens=" + maxOutputTokens
+                + ", connectTimeout=" + connectTimeout
+                + ", readTimeout=" + readTimeout
+                + ", apiKey=<redacted>}";
     }
 }
