@@ -49,10 +49,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node 20
+      - name: Set up Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # jsdom 30 (via its bundled undici) calls a webidl helper that Node 20
+          # does not implement, so `npm test` fails immediately on every file
+          # with "webidl.util.markAsUncloneable is not a function" - a runner
+          # incompatibility, not a real test failure. Node 22 (the version this
+          # project's own @types/node already targets) has the helper.
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
