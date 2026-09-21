@@ -193,6 +193,9 @@ export function AdminUserManagementView() {
           <UsersTable
             users={users}
             currentUserId={currentUser?.id}
+            // Page-local count, not platform-wide - see canDelete's own
+            // caveat about this. The backend still holds the real invariant.
+            adminCount={users.filter((u) => u.role === "ADMIN").length}
             onViewDetails={(user) => setSelectedId(user.id)}
           />
 
@@ -210,6 +213,7 @@ export function AdminUserManagementView() {
       <UserDetailsDialog
         user={selected}
         currentUserId={currentUser?.id}
+        adminCount={users.filter((u) => u.role === "ADMIN").length}
         open={selected !== null}
         onOpenChange={(open) => {
           if (!open) setSelectedId(null);

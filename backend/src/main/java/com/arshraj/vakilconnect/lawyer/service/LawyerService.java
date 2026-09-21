@@ -49,4 +49,10 @@ public interface LawyerService {
 
     LawyerProfileResponse verifyLawyer(UUID lawyerId);
 
+    /**
+     * Declines a pending application. NOT terminal - see {@code Lawyer#rejected}.
+     * {@code reason} is optional and shown back to the lawyer.
+     */
+    LawyerProfileResponse rejectLawyer(UUID lawyerId, String reason);
+
 }

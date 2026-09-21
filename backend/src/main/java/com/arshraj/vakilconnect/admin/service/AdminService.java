@@ -17,9 +17,22 @@ public interface AdminService {
 
     LawyerProfileResponse verifyLawyer(UUID lawyerId);
 
+    LawyerProfileResponse rejectLawyer(UUID lawyerId, String reason);
+
     Page<UserSummaryResponse> getUsers(Role role, Pageable pageable);
 
     UserSummaryResponse setUserActive(UUID userId, boolean active);
+
+    /**
+     * Permanently deletes a user account and everything that belongs to it
+     * (lawyer profile, appointments, reviews, AI documents - see V10's
+     * cascading FKs). Irreversible.
+     *
+     * @param requesterEmail the authenticated admin making the call, used to
+     *                        refuse self-deletion and to identify the actor
+     *                        for the last-admin guard.
+     */
+    void deleteUser(UUID userId, String requesterEmail);
 
     Page<AdminReviewResponse> getReviews(Pageable pageable);
 

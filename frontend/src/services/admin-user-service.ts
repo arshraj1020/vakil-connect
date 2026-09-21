@@ -2,24 +2,30 @@ import api from "@/lib/axios";
 import type { AdminUserParams, Paged, UserSummaryResponse } from "@/types";
 
 /**
- * Admin user management. Exactly three endpoints exist.
+ * Admin user management.
  *
  * What the API does NOT provide, and therefore what this module cannot offer:
  *   - no single-user GET (`/api/users/me` returns the CALLER, not an arbitrary
  *     user), so there is no detail fetch - the list row is the whole record
  *   - no search by name or email
  *   - no ordering, and no sort parameter
- *   - no create, edit, delete, password reset or role change
+ *   - no edit, password reset or role change
  *   - no bulk operations
  *
  * Role filtering IS supported and is applied server-side, so it is a true
  * global filter rather than a filter over the loaded page.
+ *
+ * Delete IS supported but is permanent - see `deleteUser` below. It cascades
+ * through the account's lawyer profile, appointments, reviews and AI
+ * documents at the database level (V10), unlike deactivate, which only flips
+ * a flag and keeps every row.
  */
 
 const ENDPOINTS = {
   users: "/api/admin/users",
   activate: (userId: string) => `/api/admin/users/${userId}/activate`,
   deactivate: (userId: string) => `/api/admin/users/${userId}/deactivate`,
+  delete: (userId: string) => `/api/admin/users/${userId}`,
 } as const;
 
 /**
@@ -92,8 +98,24 @@ export async function deactivateUser(
   return data;
 }
 
+/**
+ * PERMANENTLY deletes a user account and everything that belongs to it.
+ * There is no confirmation, no undo and no trash - the row and everything
+ * cascaded from it (V10) are gone the moment this resolves. The UI must
+ * confirm before calling this; see the type-to-confirm dialog in
+ * `UserActions`.
+ *
+ * The backend additionally refuses (409) deleting your own account, or the
+ * last remaining ADMIN account - both are server-side invariants, not just
+ * UI guards, unlike `canDeactivate`.
+ */
+export async function deleteUser(userId: string): Promise<void> {
+  await api.delete(ENDPOINTS.delete(userId));
+}
+
 export const adminUserService = {
   getUsers,
   activateUser,
   deactivateUser,
+  deleteUser,
 } as const;

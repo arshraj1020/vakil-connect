@@ -186,9 +186,10 @@ export function LawyerDetailsDialog({
               <VerificationActions
                 lawyerId={profile.id}
                 lawyerName={profile.fullName}
-                // The lawyer has left the queue, so the dialog behind it is
-                // showing a row that no longer exists.
+                // Either action removes the lawyer from the queue, so the
+                // dialog behind it is showing a row that no longer exists.
                 onVerified={() => onOpenChange(false)}
+                onRejected={() => onOpenChange(false)}
               />
             ) : (
               <Badge variant="success" className="gap-1.5">

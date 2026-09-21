@@ -8,18 +8,24 @@ import type {
 } from "@/types";
 
 /**
- * Lawyer verification. Exactly two admin endpoints exist for it.
+ * Lawyer verification.
  *
  * What the API does NOT provide, and therefore what this module cannot offer:
- *   - no reject endpoint, and no way to un-verify
+ *   - no un-verify endpoint (verifying is still irreversible on its own)
  *   - no search or filter parameters on the pending queue
- *   - no bulk verification
+ *   - no bulk verification or bulk rejection
  *   - no ordering, and no `createdAt` to order by
+ *
+ * Rejection IS supported (`/reject`) but is deliberately not the inverse of
+ * verification: it does not delete the application, and it is not terminal -
+ * the lawyer's next profile edit clears it server-side and puts them back in
+ * the pending queue. See `LawyerProfileResponse.rejected`.
  */
 
 const ENDPOINTS = {
   pending: "/api/admin/lawyers/pending",
   verify: (lawyerId: string) => `/api/admin/lawyers/${lawyerId}/verify`,
+  reject: (lawyerId: string) => `/api/admin/lawyers/${lawyerId}/reject`,
 } as const;
 
 /**
@@ -88,8 +94,28 @@ export async function verifyLawyer(
   return data;
 }
 
+/**
+ * Declines a pending application. `reason` is optional and shown back to the
+ * lawyer; omit it (or pass an empty string) to decline without one.
+ *
+ * Not guarded by current state, same as `verifyLawyer`: rejecting an
+ * already-rejected or already-verified lawyer succeeds and just overwrites
+ * the flags, rather than conflicting.
+ */
+export async function rejectLawyer(
+  lawyerId: string,
+  reason?: string,
+): Promise<LawyerProfileResponse> {
+  const { data } = await api.put<LawyerProfileResponse>(
+    ENDPOINTS.reject(lawyerId),
+    { reason: reason?.trim() || undefined },
+  );
+  return data;
+}
+
 export const adminLawyerService = {
   getPendingLawyers,
   getLawyerForReview,
   verifyLawyer,
+  rejectLawyer,
 } as const;

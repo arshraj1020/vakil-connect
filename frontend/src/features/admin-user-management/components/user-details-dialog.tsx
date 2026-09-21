@@ -37,11 +37,13 @@ import { UserActions } from "./user-actions";
 export function UserDetailsDialog({
   user,
   currentUserId,
+  adminCount,
   open,
   onOpenChange,
 }: {
   user: UserSummaryResponse | null;
   currentUserId: string | undefined;
+  adminCount: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -112,7 +114,10 @@ export function UserDetailsDialog({
           <UserActions
             user={user}
             currentUserId={currentUserId}
+            adminCount={adminCount}
             size="default"
+            // The row this dialog describes no longer exists once deleted.
+            onDeleted={() => onOpenChange(false)}
           />
         </DialogFooter>
       </DialogContent>

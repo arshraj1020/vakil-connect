@@ -6,14 +6,17 @@ import com.arshraj.vakilconnect.admin.dto.UserSummaryResponse;
 import com.arshraj.vakilconnect.admin.service.AdminService;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerProfileResponse;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerSummaryResponse;
+import com.arshraj.vakilconnect.lawyer.dto.RejectLawyerRequest;
 import com.arshraj.vakilconnect.user.enums.Role;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,6 +53,15 @@ public class AdminController {
         return adminService.verifyLawyer(lawyerId);
     }
 
+    @PutMapping("/lawyers/{lawyerId}/reject")
+    public LawyerProfileResponse rejectLawyer(
+            @PathVariable UUID lawyerId,
+            @RequestBody(required = false) RejectLawyerRequest request) {
+
+        String reason = (request == null) ? null : request.getReason();
+        return adminService.rejectLawyer(lawyerId, reason);
+    }
+
     // ---- User management (FR-17) ----
 
     @GetMapping("/users")
@@ -69,6 +81,12 @@ public class AdminController {
     @PutMapping("/users/{userId}/deactivate")
     public UserSummaryResponse deactivateUser(@PathVariable UUID userId) {
         return adminService.setUserActive(userId, false);
+    }
+
+    @DeleteMapping("/users/{userId}")
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID userId, Authentication authentication) {
+        adminService.deleteUser(userId, authentication.getName());
+        return ResponseEntity.noContent().build();
     }
 
     // ---- Review moderation (FR-18) ----

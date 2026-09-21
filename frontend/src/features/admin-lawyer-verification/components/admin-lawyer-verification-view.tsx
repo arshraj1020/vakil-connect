@@ -30,8 +30,10 @@ const PAGE_SIZE = 10;
  * happening when verifications elsewhere shrink the queue while an admin sits
  * on a later page.
  *
- * Only verification is offered. No reject or un-verify endpoint exists, so no
- * such control is rendered, not even disabled - see VerificationActions.
+ * Verify and Decline are both offered (see VerificationActions). There is
+ * still no un-verify endpoint, so a lawyer already verified cannot be pulled
+ * back out of client search from this queue - that state simply never shows
+ * up here again, by construction of the pending query.
  *
  * 401 and 403 do not reach this component: the Axios interceptor handles 401 by
  * clearing the session and redirecting, and RoleGuard in the /admin layout

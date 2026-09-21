@@ -1,55 +1,82 @@
 "use client";
 
-import { UserCheck, UserX } from "lucide-react";
+import { Trash2, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { isApiError, type UserSummaryResponse } from "@/types";
 
+import { useDeleteUser } from "../hooks/use-delete-user";
 import {
   useUpdateUserStatus,
   type UserStatusAction,
 } from "../hooks/use-update-user-status";
-import { canDeactivate, isSelf } from "../lib/user-utils";
+import { canDeactivate, canDelete, isSelf } from "../lib/user-utils";
 
 /**
- * The only two actions the backend supports on a user account.
+ * The three actions the backend supports on a user account: Activate,
+ * Deactivate and Delete. There is still no Edit, Reset password, Suspend or
+ * Change role control, because no such endpoint exists.
  *
- * There is no Edit, Delete, Reset password, Suspend or Change role control,
- * because no such endpoint exists - the admin API offers exactly
- * `PUT .../activate` and `PUT .../deactivate` and nothing else.
+ * Delete is a SEPARATE, HARSHER action from deactivate, not an alternative
+ * presentation of it. Deactivate flips a flag and keeps every row - it is
+ * reversible by hitting Activate. Delete is permanent: it cascades through
+ * the account's lawyer profile, appointments, reviews and AI documents at the
+ * database level (V10) and cannot be undone from this UI or any other. That
+ * difference is why it gets its own confirmation mechanism - a plain
+ * ConfirmDialog (one click past a "Cancel" default) is calibrated for
+ * deactivation, not for something with no way back. Delete instead requires
+ * typing the account's exact name, the same friction pattern used for
+ * destroying a resource you cannot get back.
  *
- * Self-deactivation is blocked as a UX SAFEGUARD, not a security control - the
- * check runs in the browser and does not stop a direct API call. It exists
- * because `setUserActive` applies no guard and authentication reads
- * `.disabled(!active)`, so an admin who deactivated their own account would be
- * locked out at their next sign-in with no way to undo it. The button renders
- * disabled with the reason on it rather than hidden, so the rule reads as a
- * rule instead of a missing feature. See `canDeactivate` for the server-side
- * invariants this does NOT enforce.
+ * Self-deactivation and self-deletion are both blocked as UX SAFEGUARDS, not
+ * security controls - see `canDeactivate` and `canDelete` for exactly what
+ * they do and do not enforce, and why. The backend enforces the real
+ * invariants (own-account and last-admin) itself, returning 409.
  *
- * Owns its own mutation instance so each row tracks its own pending state.
+ * Owns its own mutation instances so each row tracks its own pending state.
  */
 export function UserActions({
   user,
   currentUserId,
+  adminCount,
   size = "sm",
+  onDeleted,
 }: {
   user: UserSummaryResponse;
-  /** The signed-in admin, used only for the self-deactivation guard. */
+  /** The signed-in admin, used for the self-deactivation/self-deletion guards. */
   currentUserId: string | undefined;
+  /** See `canDelete` - a page-local count, not a platform-wide one. */
+  adminCount: number;
   size?: "sm" | "default";
+  /** Lets a parent (e.g. the details dialog) close once this row is gone. */
+  onDeleted?: () => void;
 }) {
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isConfirmingStatus, setIsConfirmingStatus] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const action: UserStatusAction = user.active ? "deactivate" : "activate";
-  const blocked = action === "deactivate" && !canDeactivate(user, currentUserId);
+  const statusBlocked =
+    action === "deactivate" && !canDeactivate(user, currentUserId);
+  const deleteBlocked = !canDelete(user, currentUserId, adminCount);
 
-  const mutation = useUpdateUserStatus({
+  const statusMutation = useUpdateUserStatus({
     onSuccess: (updated, performed) => {
-      setIsConfirming(false);
+      setIsConfirmingStatus(false);
 
       toast.success(
         performed === "activate"
@@ -65,7 +92,7 @@ export function UserActions({
     },
 
     onError: (error) => {
-      setIsConfirming(false);
+      setIsConfirmingStatus(false);
 
       toast.error("Could not update this account", {
         description: isApiError(error)
@@ -77,33 +104,89 @@ export function UserActions({
     },
   });
 
-  const Icon = user.active ? UserX : UserCheck;
+  const deleteMutation = useDeleteUser({
+    onSuccess: () => {
+      setIsDeleting(false);
+      setDeleteConfirmText("");
+
+      toast.success(`${user.fullName}'s account has been deleted`, {
+        description:
+          "Their profile, appointments, reviews and documents are gone.",
+      });
+
+      onDeleted?.();
+    },
+
+    onError: (error) => {
+      toast.error("Could not delete this account", {
+        // 409 covers both server-side invariants (self-delete, last admin) -
+        // the backend's message is specific enough to show directly.
+        description: isApiError(error)
+          ? error.status === 404
+            ? "This account no longer exists."
+            : error.message
+          : "Please try again.",
+      });
+    },
+  });
+
+  const StatusIcon = user.active ? UserX : UserCheck;
+  const nameMatches = deleteConfirmText.trim() === user.fullName;
 
   return (
     <>
-      <Button
-        variant={user.active ? "outline" : "default"}
-        size={size}
-        disabled={blocked || mutation.isPending}
-        onClick={() => setIsConfirming(true)}
-        aria-label={
-          blocked
-            ? "You cannot deactivate your own account"
-            : `${user.active ? "Deactivate" : "Activate"} ${user.fullName}`
-        }
-        title={blocked ? "You cannot deactivate your own account" : undefined}
-      >
-        <Icon aria-hidden />
-        {user.active ? "Deactivate" : "Activate"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant={user.active ? "outline" : "default"}
+          size={size}
+          disabled={statusBlocked || statusMutation.isPending}
+          onClick={() => setIsConfirmingStatus(true)}
+          aria-label={
+            statusBlocked
+              ? "You cannot deactivate your own account"
+              : `${user.active ? "Deactivate" : "Activate"} ${user.fullName}`
+          }
+          title={
+            statusBlocked ? "You cannot deactivate your own account" : undefined
+          }
+        >
+          <StatusIcon aria-hidden />
+          {user.active ? "Deactivate" : "Activate"}
+        </Button>
+
+        <Button
+          variant="outline"
+          size={size}
+          className="text-destructive hover:text-destructive"
+          disabled={deleteBlocked || deleteMutation.isPending}
+          onClick={() => setIsDeleting(true)}
+          aria-label={
+            deleteBlocked
+              ? isSelf(user, currentUserId)
+                ? "You cannot delete your own account"
+                : "You cannot delete the last admin account"
+              : `Delete ${user.fullName}`
+          }
+          title={
+            deleteBlocked
+              ? isSelf(user, currentUserId)
+                ? "You cannot delete your own account"
+                : "You cannot delete the last admin account"
+              : undefined
+          }
+        >
+          <Trash2 aria-hidden />
+          Delete
+        </Button>
+      </div>
 
       {isSelf(user, currentUserId) && user.active ? (
         <span className="sr-only">This is your own account.</span>
       ) : null}
 
       <ConfirmDialog
-        open={isConfirming}
-        onOpenChange={setIsConfirming}
+        open={isConfirmingStatus}
+        onOpenChange={setIsConfirmingStatus}
         title={
           user.active
             ? `Deactivate ${user.fullName}?`
@@ -116,9 +199,70 @@ export function UserActions({
         }
         confirmLabel={user.active ? "Deactivate" : "Activate"}
         destructive={user.active}
-        isPending={mutation.isPending}
-        onConfirm={() => mutation.mutate({ userId: user.id, action })}
+        isPending={statusMutation.isPending}
+        onConfirm={() => statusMutation.mutate({ userId: user.id, action })}
       />
+
+      <Dialog
+        open={isDeleting}
+        onOpenChange={
+          deleteMutation.isPending
+            ? undefined
+            : (open) => {
+                setIsDeleting(open);
+                if (!open) setDeleteConfirmText("");
+              }
+        }
+      >
+        <DialogContent
+          className="max-w-md"
+          showClose={!deleteMutation.isPending}
+        >
+          <DialogHeader>
+            <DialogTitle>Delete {user.fullName}&apos;s account?</DialogTitle>
+            <DialogDescription>
+              This is permanent. Their profile, appointments, reviews and AI
+              documents are all deleted with it - there is no undo. Type
+              their full name to confirm.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="delete-confirm-name" className="sr-only">
+              Type &quot;{user.fullName}&quot; to confirm
+            </Label>
+            <Input
+              id="delete-confirm-name"
+              value={deleteConfirmText}
+              onChange={(event) => setDeleteConfirmText(event.target.value)}
+              placeholder={user.fullName}
+              disabled={deleteMutation.isPending}
+              autoComplete="off"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleting(false);
+                setDeleteConfirmText("");
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!nameMatches || deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate(user.id)}
+            >
+              {deleteMutation.isPending ? <Spinner size="sm" /> : null}
+              Delete permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

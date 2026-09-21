@@ -5,6 +5,7 @@ import com.arshraj.vakilconnect.admin.dto.AnalyticsResponse;
 import com.arshraj.vakilconnect.admin.dto.UserSummaryResponse;
 import com.arshraj.vakilconnect.appointment.enums.AppointmentStatus;
 import com.arshraj.vakilconnect.appointment.repository.AppointmentRepository;
+import com.arshraj.vakilconnect.common.exception.BusinessRuleException;
 import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerProfileResponse;
 import com.arshraj.vakilconnect.lawyer.dto.LawyerSummaryResponse;
@@ -55,6 +56,11 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    public LawyerProfileResponse rejectLawyer(UUID lawyerId, String reason) {
+        return lawyerService.rejectLawyer(lawyerId, reason);
+    }
+
+    @Override
     public Page<UserSummaryResponse> getUsers(Role role, Pageable pageable) {
         Page<User> users = (role == null)
                 ? userRepository.findAll(pageable)
@@ -72,6 +78,38 @@ public class AdminServiceImpl implements AdminService {
         user.setActive(active);
 
         return toUserSummary(userRepository.save(user));
+    }
+
+    /*
+     * Two guards, both permanent-data-loss prevention, not convenience:
+     *
+     *   self-delete   an admin who deletes their own account mid-session
+     *                 locks themselves out with no one left to undo it - the
+     *                 JWT they're holding is still valid for the rest of its
+     *                 lifetime, pointing at a user row that no longer exists.
+     *
+     *   last admin    deleting the only ADMIN account leaves the platform
+     *                 with no one who can reach this endpoint at all. The
+     *                 dashboard's "1 admin" stat is exactly this count.
+     *
+     * Both are BusinessRuleException (409), matching every other invalid-
+     * state-transition in this codebase (see its own javadoc).
+     */
+    @Override
+    @Transactional
+    public void deleteUser(UUID userId, String requesterEmail) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (user.getEmail().equalsIgnoreCase(requesterEmail)) {
+            throw new BusinessRuleException("You cannot delete your own account.");
+        }
+
+        if (user.getRole() == Role.ADMIN && userRepository.countByRole(Role.ADMIN) <= 1) {
+            throw new BusinessRuleException("Cannot delete the last remaining admin account.");
+        }
+
+        userRepository.delete(user);
     }
 
     @Override

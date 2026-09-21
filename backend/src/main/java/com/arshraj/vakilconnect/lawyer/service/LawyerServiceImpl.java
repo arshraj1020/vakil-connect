@@ -210,7 +210,7 @@ public class LawyerServiceImpl implements LawyerService {
     @Override
     @Transactional(readOnly = true)
     public Page<LawyerSummaryResponse> getPendingLawyers(Pageable pageable) {
-        return lawyerRepository.findByVerifiedFalse(pageable)
+        return lawyerRepository.findByVerifiedFalseAndRejectedFalse(pageable)
                 .map(this::toSummaryResponse);
     }
 
@@ -236,6 +236,21 @@ public class LawyerServiceImpl implements LawyerService {
                 .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
 
         lawyer.setVerified(true);
+        lawyer.setRejected(false);
+        lawyer.setRejectionReason(null);
+
+        return toProfileResponse(lawyerRepository.save(lawyer));
+    }
+
+    @Override
+    @Transactional
+    public LawyerProfileResponse rejectLawyer(UUID lawyerId, String reason) {
+        Lawyer lawyer = lawyerRepository.findById(lawyerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lawyer not found"));
+
+        lawyer.setVerified(false);
+        lawyer.setRejected(true);
+        lawyer.setRejectionReason(blankToNull(reason));
 
         return toProfileResponse(lawyerRepository.save(lawyer));
     }
@@ -262,6 +277,13 @@ public class LawyerServiceImpl implements LawyerService {
 
         // Dual-write, same contract as creation.
         applyCityReference(lawyer, request.getCity());
+
+        // Editing the profile IS the resubmission after a decline: clear the
+        // rejection so the lawyer reappears in the admin's pending queue.
+        // Deliberately does NOT touch `verified` - re-verification is still a
+        // fresh admin decision either way.
+        lawyer.setRejected(false);
+        lawyer.setRejectionReason(null);
 
         return toProfileResponse(lawyerRepository.save(lawyer));
     }
@@ -333,6 +355,8 @@ public class LawyerServiceImpl implements LawyerService {
         response.setOfficeAddress(lawyer.getOfficeAddress());
 
         response.setVerified(lawyer.getVerified());
+        response.setRejected(lawyer.getRejected());
+        response.setRejectionReason(lawyer.getRejectionReason());
         response.setRating(lawyer.getRating());
         response.setTotalReviews(lawyer.getTotalReviews());
         response.setSpecializations(

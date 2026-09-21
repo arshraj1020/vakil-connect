@@ -39,6 +39,19 @@ public class Lawyer extends BaseEntity {
     @Column(nullable = false)
     private Boolean verified = false;
 
+    /**
+     * Set by an admin declining a pending application (see AdminService).
+     * Deliberately NOT terminal: {@link com.arshraj.vakilconnect.lawyer.service.LawyerServiceImpl#updateCurrentLawyerProfile}
+     * clears this back to false on the lawyer's next profile edit, which is
+     * what returns them to the pending queue. There is no separate "resubmit"
+     * endpoint - editing the profile IS the resubmission.
+     */
+    @Column(nullable = false)
+    private Boolean rejected = false;
+
+    @Column(name = "rejection_reason", length = 1000)
+    private String rejectionReason;
+
     @Column(nullable = false)
     private Double rating = 0.0;
 
@@ -171,6 +184,22 @@ public class Lawyer extends BaseEntity {
 
     public void setVerified(Boolean verified) {
         this.verified = verified;
+    }
+
+    public Boolean getRejected() {
+        return rejected;
+    }
+
+    public void setRejected(Boolean rejected) {
+        this.rejected = rejected;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 
     public Double getRating() {

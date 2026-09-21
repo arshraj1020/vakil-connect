@@ -20,10 +20,12 @@ import { UserRow } from "./user-row";
 export function UsersTable({
   users,
   currentUserId,
+  adminCount,
   onViewDetails,
 }: {
   users: UserSummaryResponse[];
   currentUserId: string | undefined;
+  adminCount: number;
   onViewDetails: (user: UserSummaryResponse) => void;
 }) {
   return (
@@ -33,6 +35,7 @@ export function UsersTable({
           <UserRow
             user={user}
             currentUserId={currentUserId}
+            adminCount={adminCount}
             onViewDetails={onViewDetails}
           />
         </li>

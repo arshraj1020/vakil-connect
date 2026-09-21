@@ -33,8 +33,11 @@ public interface LawyerRepository extends JpaRepository<Lawyer, UUID> {
      * so fetching it adds a join without multiplying rows - pagination is still
      * applied in SQL, unlike a collection fetch.
      */
+    // Excludes rejected applications: a decline is not terminal (see
+    // Lawyer#rejected), but a rejected lawyer should stay out of the queue
+    // until they resubmit by editing their profile, which clears the flag.
     @EntityGraph(attributePaths = "primaryCity")
-    Page<Lawyer> findByVerifiedFalse(Pageable pageable);
+    Page<Lawyer> findByVerifiedFalseAndRejectedFalse(Pageable pageable);
 
     long countByVerifiedTrue();
 

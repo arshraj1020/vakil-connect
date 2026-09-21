@@ -19,6 +19,8 @@ public class LawyerProfileResponse {
     private String officeAddress;
 
     private Boolean verified;
+    private Boolean rejected;
+    private String rejectionReason;
     private Double rating;
     private Integer totalReviews;
     private List<String> specializations;
@@ -112,6 +114,22 @@ public class LawyerProfileResponse {
 
     public void setVerified(Boolean verified) {
         this.verified = verified;
+    }
+
+    public Boolean getRejected() {
+        return rejected;
+    }
+
+    public void setRejected(Boolean rejected) {
+        this.rejected = rejected;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 
     public Double getRating() {

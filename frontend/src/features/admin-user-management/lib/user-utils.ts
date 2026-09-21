@@ -107,3 +107,37 @@ export function canDeactivate(
 ): boolean {
   return !isSelf(user, currentUserId);
 }
+
+/**
+ * Whether the Delete action should be offered for this row.
+ *
+ * A UX SAFEGUARD, same status as `canDeactivate` and for the same reason:
+ * this check runs in the browser only. The backend enforces both invariants
+ * for real (`AdminServiceImpl.deleteUser`, 409 BusinessRuleException) -
+ * deleting your own account or the last ADMIN fails server-side regardless
+ * of what this function returns. This exists so the button reads as a rule
+ * rather than a surprise 409 after the confirmation dialog.
+ *
+ * `adminCount` is the number of ADMIN accounts currently loaded on THIS
+ * page - not a platform-wide count. That is a real limitation: with role
+ * filtering or pagination, this guard can under- or over-count relative to
+ * the backend's true count, which always sees every admin. It still catches
+ * the common case (one admin, deleting yourself or the only other admin
+ * visible) and never needs to be exact, because the server has the last
+ * word either way.
+ */
+export function canDelete(
+  user: UserSummaryResponse,
+  currentUserId: string | undefined,
+  adminCount: number,
+): boolean {
+  if (isSelf(user, currentUserId)) {
+    return false;
+  }
+
+  if (user.role === "ADMIN" && adminCount <= 1) {
+    return false;
+  }
+
+  return true;
+}

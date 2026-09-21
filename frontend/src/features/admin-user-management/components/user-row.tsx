@@ -28,10 +28,12 @@ import { UserActions } from "./user-actions";
 export function UserRow({
   user,
   currentUserId,
+  adminCount,
   onViewDetails,
 }: {
   user: UserSummaryResponse;
   currentUserId: string | undefined;
+  adminCount: number;
   onViewDetails: (user: UserSummaryResponse) => void;
 }) {
   const role = getRoleMeta(user.role);
@@ -76,7 +78,11 @@ export function UserRow({
             Details
           </Button>
 
-          <UserActions user={user} currentUserId={currentUserId} />
+          <UserActions
+            user={user}
+            currentUserId={currentUserId}
+            adminCount={adminCount}
+          />
         </div>
       </CardContent>
     </Card>

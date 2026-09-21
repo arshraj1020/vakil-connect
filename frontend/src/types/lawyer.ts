@@ -66,6 +66,14 @@ export interface LawyerProfileResponse {
 
   /** Admin-verified. Only verified lawyers appear in search and accept bookings. */
   verified: boolean;
+  /**
+   * Set when an admin declines the application. NOT terminal: editing the
+   * profile (the resubmission path) clears this back to false server-side,
+   * which is what returns the lawyer to the pending queue.
+   */
+  rejected: boolean;
+  /** Free text set by the declining admin. Null unless `rejected` is true. */
+  rejectionReason: string | null;
   /** 0.0 until the first review. Rounded to 2 decimals by the backend. */
   rating: number;
   totalReviews: number;
