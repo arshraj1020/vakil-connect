@@ -32,6 +32,16 @@ import { isApiError, type DocumentSummaryResponse } from "@/types";
  * hidden behind disabling the button before the fact: the list can be briefly
  * stale (e.g. two tabs open), and surfacing the backend's real answer is more
  * honest than guessing client-side.
+ *
+ * LAYOUT: the status badge and the action(s) it implies (Process / Retry /
+ * Analyze) sit together in the header row, on the same side, right next to
+ * the filename. They used to live in a second row below the metadata, which
+ * visually separated "what state this document is in" from "what you can do
+ * about it" - a document that was merely uploaded showed its "Not processed"
+ * badge at the top and an unrelated-looking "Process" button hanging below.
+ * Delete is deliberately the odd one out: it is not implied by status, so it
+ * stays a small icon-only affordance at the far right rather than competing
+ * with the primary action for attention.
  */
 export function DocumentRow({ document }: { document: DocumentSummaryResponse }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -97,7 +107,7 @@ export function DocumentRow({ document }: { document: DocumentSummaryResponse })
   return (
     <Card>
       <CardContent className="space-y-4 py-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
               <FileText className="size-4" aria-hidden />
@@ -113,33 +123,38 @@ export function DocumentRow({ document }: { document: DocumentSummaryResponse })
             </div>
           </div>
 
-          <DocumentStatusBadge status={document.status} />
-        </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <DocumentStatusBadge status={document.status} />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {canProcess ? (
-            <Button size="sm" variant="outline" onClick={handleProcess} disabled={process.isPending}>
-              {process.isPending ? <Spinner size="sm" /> : null}
-              {document.status === "FAILED" ? "Retry processing" : "Process"}
+            {canProcess ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleProcess}
+                disabled={process.isPending}
+              >
+                {process.isPending ? <Spinner size="sm" /> : null}
+                {document.status === "FAILED" ? "Retry processing" : "Process"}
+              </Button>
+            ) : null}
+
+            {canAnalyze ? (
+              <Button size="sm" variant="outline" onClick={handleAnalyze}>
+                <Sparkles aria-hidden />
+                Analyze
+              </Button>
+            ) : null}
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setConfirmingDelete(true)}
+              aria-label="Delete document"
+            >
+              <Trash2 aria-hidden />
             </Button>
-          ) : null}
-
-          {canAnalyze ? (
-            <Button size="sm" variant="outline" onClick={handleAnalyze}>
-              <Sparkles aria-hidden />
-              Analyze
-            </Button>
-          ) : null}
-
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto text-destructive hover:text-destructive"
-            onClick={() => setConfirmingDelete(true)}
-          >
-            <Trash2 aria-hidden />
-            Delete
-          </Button>
+          </div>
         </div>
 
         {analysisOpen ? (

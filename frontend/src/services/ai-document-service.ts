@@ -96,8 +96,20 @@ export async function deleteDocument(documentId: Uuid): Promise<void> {
 export async function processDocument(
   documentId: Uuid,
 ): Promise<IngestionResult> {
+  /*
+   * OVERRIDES THE INSTANCE'S 20s DEFAULT. Extraction + chunking + embedding
+   * against a hosted model can legitimately run close to the backend's own
+   * 120s read-timeout (AI_READ_TIMEOUT) on a large file or a cold instance.
+   * At the 20s default, axios aborted client-side (ECONNABORTED) while the
+   * backend kept working and finished successfully a few seconds later - the
+   * UI showed "Processing failed" for a request that, in fact, hadn't. This
+   * timeout is set just above the backend's ceiling so a real backend
+   * timeout, not an impatient client, is what produces an error here.
+   */
   const { data } = await api.post<IngestionResult>(
     ENDPOINTS.process(documentId),
+    undefined,
+    { timeout: 130_000 },
   );
   return data;
 }
@@ -110,8 +122,12 @@ export async function processDocument(
 export async function analyzeDocument(
   documentId: Uuid,
 ): Promise<DocumentAnalysis> {
+  // Same reasoning as processDocument: structured analysis is a single long
+  // generation call and can approach the backend's own read-timeout.
   const { data } = await api.post<DocumentAnalysis>(
     ENDPOINTS.analyze(documentId),
+    undefined,
+    { timeout: 130_000 },
   );
   return data;
 }
