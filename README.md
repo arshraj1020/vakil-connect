@@ -563,12 +563,11 @@ Deliberate, and stated rather than left to be discovered:
 | Limitation | Detail |
 |:---|:---|
 | **No payment processing** | Lawyers set their own fee; payment is arranged directly with them. No gateway, no commission |
-| **AI runs on the stub in production** | Render doesn't host Ollama, so `/ask` and `/analyze` answer with a clear `[stub-llm]` placeholder rather than a real model, until there's a deliberate decision about hosting inference |
+| **AI runs on the stub in production** | Render doesn't host Ollama, so `/ask`, `/analyze` and `/compare` answer with a clear `[stub-llm]` placeholder rather than a real model, until there's a deliberate decision about hosting inference |
 | **No token refresh** | A single 24-hour JWT; expiry surfaces as a redirect to login |
 | **Token readable by JavaScript** | `js-cookie` cannot set `httpOnly`; moving to it needs a proxy route |
 | **CSP is Report-Only** | Reports violations without enforcing them; `X-Frame-Options` is the active clickjacking defence |
 | **Manual verification** | An administrator checks each bar council number by hand |
-| **No Docker or CI** | Every check to date has been run locally |
 | **No document storage tier** | Files live as `bytea` in PostgreSQL, capped at 10MB, rather than in object storage — fine at this scale, a real constraint past it |
 
 The legacy `lawyers.city` column, its dual-write and its fallback read path all

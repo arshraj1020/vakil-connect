@@ -128,7 +128,7 @@ itself looks perfectly healthy.
 # frontend
 npm run dev                     # dev server
 npm run build                   # production build (fails on type or lint errors)
-npm test                        # 62 unit tests
+npm test                        # 81 unit tests
 npm run typecheck               # tsc --noEmit
 npm run lint                    # next lint
 ```
@@ -155,6 +155,7 @@ Full annotated list: [`backend/.env.example`](backend/.env.example).
 | `MANAGEMENT_PORT` | `9091` | Actuator, separate port |
 | `MANAGEMENT_ADDRESS` | `127.0.0.1` | **See the production warning below** |
 | `MIGRATION_RECONCILIATION_TTL` | `PT5M` | Metrics cache; leave alone |
+| `SECURITY_LOG_LEVEL` | `WARN` | Spring Security's own logger. Never run above `WARN` in production |
 
 ### Frontend
 
@@ -180,7 +181,7 @@ The container is started once per JVM and torn down by Ryuk on exit.
 Test classes share one database and create data continuously, so no assertion
 depends on an absolute row count.
 
-**Frontend — 62 unit tests.**
+**Frontend — 81 unit tests.**
 
 ```bash
 cd frontend && npm test
@@ -193,14 +194,43 @@ display formatting. No component or snapshot tests yet.
 
 ## Production deployment
 
+### Target architecture (Render, or an equivalent PaaS)
+
+This project targets a small, unglamorous split across four pieces. Nothing
+below is aspirational — it is what the codebase's own configuration already
+assumes (see `application-prod.yaml` and the comments on `StubLlmClient`).
+
+| Component | Where it runs | Notes |
+|---|---|---|
+| **PostgreSQL 16 + pgvector** | A managed Postgres instance (e.g. Render's Managed PostgreSQL, which supports enabling `pgvector` via `CREATE EXTENSION`) | Flyway (V1–V9) owns the schema; point `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` at it and let the app build the schema on first boot |
+| **Spring Boot backend** | A container-based web service, built from `backend/Dockerfile` | Stateless — safe to run one instance behind the platform's own load balancing. Actuator (`MANAGEMENT_PORT`, default `9091`) must not be publicly routable; see the actuator warning below |
+| **Next.js frontend** | A container-based web service, built from `frontend/Dockerfile` | `NEXT_PUBLIC_API_BASE_URL` is a **build-time** value baked into the client bundle and the CSP `connect-src` — it must be set as a build argument/environment variable on the platform's build step, not only at runtime. Confirm your platform actually threads a Docker `ARG` through at build time; some PaaS build UIs only expose env vars to the running container, not the build |
+| **Ollama / real AI inference** | **Cannot run on Render** — see below | Production runs `StubLlmClient` (the default) and needs no AI environment variables at all |
+
+**Why Ollama specifically does not belong on Render:** Ollama is a local
+inference server that expects a persistent, several-gigabyte model file and
+benefits heavily from a GPU. As of this writing, Render does not offer GPU
+compute at all, so inference would run on CPU — slow, and still requires a
+persistent volume for the model weights, which turns a stateless web service
+into something closer to a stateful, single-instance node. This is not a
+temporary gap to code around; it is a hosting decision that has not been made
+and is out of scope for this repository. If real inference is ever wanted
+behind the deployed demo, the actual options are: a separate GPU host (a VPS
+or GPU cloud provider) that the backend calls over the network as a new
+`LlmClient` implementation plus one new `AI_PROVIDER` value, or a hosted
+inference API. Either is a deliberate, separate decision — not a Dockerfile
+tweak. **Do not deploy Ollama to Render and call it production-ready; it is
+not, and the codebase does not pretend otherwise.**
+
 ### Before you deploy
 
 - [ ] `JWT_SECRET` generated fresh — never reuse the development value
 - [ ] `DB_*` point at the production database, with a non-superuser role
-- [ ] `APP_CORS_ALLOWED_ORIGINS` set to the real frontend origin, https
+- [ ] `APP_CORS_ALLOWED_ORIGINS` set to the real frontend origin, https (comma-separate for more than one)
 - [ ] `ADMIN_PASSWORD` set to something strong; rotate after first login
+- [ ] `RESEND_API_KEY` and `EMAIL_FROM` set — `application-prod.yaml` pins the email provider to `resend`, and `ResendEmailSender` refuses to construct without both, so a missing value is a startup failure, not a silent downgrade
 - [ ] `MANAGEMENT_ADDRESS` decided (below)
-- [ ] Security `DEBUG` logging turned off (below)
+- [ ] `SECURITY_LOG_LEVEL` left at its `WARN` default, or set explicitly if your platform requires it (below)
 - [ ] `NEXT_PUBLIC_API_BASE_URL` set **before** `npm run build` — it is inlined
 
 ### Build

@@ -4,6 +4,7 @@
 # "no compose file" gap DEPLOYMENT.md tracked before this.
 #
 # Usage:
+#   cp .env.example .env                      # sets POSTGRES_USER/PASSWORD
 #   cp backend/.env.example backend/.env      # then set JWT_SECRET at minimum
 #   cp frontend/.env.example frontend/.env.local
 #   docker compose up --build
@@ -12,19 +13,31 @@
 # backend/.env.example) - compose does not work around that. Set it in
 # backend/.env before starting, or the backend container will fail to start,
 # which is the same fail-fast behaviour as running it directly.
+#
+# DATABASE CREDENTIALS COME FROM ONE PLACE, NOT TWO. The db service's
+# POSTGRES_USER/POSTGRES_PASSWORD and the backend's DB_USERNAME/DB_PASSWORD
+# are both threaded from THIS file's own POSTGRES_USER/POSTGRES_PASSWORD
+# variables (resolved from a root .env, defaulting to vakilconnect/vakilconnect
+# if absent) - never from backend/.env's own DB_USERNAME/DB_PASSWORD keys.
+# Reading them from backend/.env instead would let the db container and the
+# backend container end up with independently-defaulted, silently mismatched
+# credentials whenever a developer's backend/.env sets something other than
+# the default - an auth failure with no obvious cause. One source of truth
+# threaded explicitly to both containers makes that class of bug impossible
+# rather than something to remember to keep in sync.
 services:
   db:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: vakilconnect
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-vakilconnect}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vakilconnect}
     ports:
       - "5432:5432"
     volumes:
       - vakilconnect-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vakilconnect}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -35,10 +48,13 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      # Overrides backend/.env so the backend always reaches the compose
-      # network's db service by name, regardless of what a developer's .env
-      # points at for running the jar directly on their host.
+      # Overrides whatever backend/.env sets for these three keys, so the
+      # backend always reaches the compose network's db service by name and
+      # always authenticates with the SAME credentials the db container was
+      # actually started with - see the file-level note above.
       DB_URL: jdbc:postgresql://db:5432/vakilconnect
+      DB_USERNAME: ${POSTGRES_USER:-vakilconnect}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-vakilconnect}
     ports:
       - "8080:8080"
       - "9091:9091"
