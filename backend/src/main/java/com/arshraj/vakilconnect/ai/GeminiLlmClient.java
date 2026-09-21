@@ -54,10 +54,60 @@ public class GeminiLlmClient implements LlmClient {
         return AiProperties.GEMINI;
     }
 
+    /**
+     * Retries on a transient (retryable) LlmException, e.g. Gemini's HTTP 503
+     * "model overloaded" response, which is common enough on the free tier
+     * that a single failure there should not surface as a user-facing error.
+     * Bounded to keep this well inside the axios/backend timeout budget: two
+     * retries with a short, fixed backoff, never retrying a
+     * PermanentLlmException (see its own javadoc for why those must not be
+     * retried).
+     */
+    private static final int MAX_ATTEMPTS = 3;
+    private static final Duration RETRY_BACKOFF = Duration.ofMillis(750);
+
     @Override
     public LlmResponse complete(LlmRequest request) {
         long startedAt = System.nanoTime();
+        LlmException lastFailure = null;
 
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                LlmResponse response = attempt(request);
+
+                metrics.recordSuccess(providerName(), request.operation());
+                metrics.recordDuration(providerName(), request.operation(), elapsed(startedAt));
+
+                if (attempt > 1) {
+                    log.info("Gemini operation {} succeeded on attempt {}/{}",
+                            request.operation(), attempt, MAX_ATTEMPTS);
+                }
+
+                return response;
+
+            } catch (LlmException e) {
+                lastFailure = e;
+
+                boolean hasAttemptsLeft = attempt < MAX_ATTEMPTS;
+                if (e.isRetryable() && hasAttemptsLeft) {
+                    log.warn("Gemini operation {} failed on attempt {}/{} ({}); retrying",
+                            request.operation(), attempt, MAX_ATTEMPTS, e.getMessage());
+                    sleepBeforeRetry();
+                    continue;
+                }
+
+                metrics.recordFailure(providerName(), request.operation());
+                metrics.recordDuration(providerName(), request.operation(), elapsed(startedAt));
+                throw e;
+            }
+        }
+
+        // Unreachable: the loop above always returns or throws, but the
+        // compiler cannot see that, so this keeps the method well-formed.
+        throw lastFailure;
+    }
+
+    private LlmResponse attempt(LlmRequest request) {
         try {
             JsonNode body = restClient.post()
                     .uri(URI.create(endpointFor(properties.model())))
@@ -72,31 +122,31 @@ public class GeminiLlmClient implements LlmClient {
 
             LlmResponse response = parse(body);
 
-            metrics.recordSuccess(providerName(), request.operation());
-            metrics.recordDuration(providerName(), request.operation(), elapsed(startedAt));
-
             log.debug("Gemini completed operation {} ({} chars)",
                     request.operation(), response.text().length());
 
             return response;
 
         } catch (LlmException e) {
-            metrics.recordFailure(providerName(), request.operation());
-            metrics.recordDuration(providerName(), request.operation(), elapsed(startedAt));
             throw e;
 
         } catch (ResourceAccessException e) {
-            metrics.recordFailure(providerName(), request.operation());
-            metrics.recordDuration(providerName(), request.operation(), elapsed(startedAt));
             throw new LlmException(
                     "Gemini was not reachable (" + e.getMessage() + ") - check network access", e);
 
         } catch (RestClientException e) {
-            metrics.recordFailure(providerName(), request.operation());
-            metrics.recordDuration(providerName(), request.operation(), elapsed(startedAt));
             throw new LlmException(
                     "Gemini returned a response that could not be read as JSON: "
                             + e.getClass().getSimpleName(), e);
+        }
+    }
+
+    private static void sleepBeforeRetry() {
+        try {
+            Thread.sleep(RETRY_BACKOFF.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new LlmException("Interrupted while waiting to retry Gemini request", e);
         }
     }
 
