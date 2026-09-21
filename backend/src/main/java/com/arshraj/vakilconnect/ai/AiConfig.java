@@ -38,8 +38,6 @@ import org.springframework.web.client.RestClient;
  * available proof that the test suite cannot reach any inference server.
  */
 @Configuration
-@ConditionalOnProperty(name = "vakilconnect.ai.provider",
-        havingValue = AiProperties.OLLAMA)
 public class AiConfig {
 
     /**
@@ -51,9 +49,35 @@ public class AiConfig {
      * The read timeout here is the one that matters and is deliberately
      * generous - see {@link AiProperties#readTimeout()} for why local inference
      * needs far longer than a hosted API would.
+     *
+     * GATED ON provider=ollama, same as before this class also learned to build
+     * a Gemini client - a stub context still builds neither HTTP client.
      */
     @Bean
+    @ConditionalOnProperty(name = "vakilconnect.ai.provider", havingValue = AiProperties.OLLAMA)
     public RestClient ollamaRestClient(RestClient.Builder builder, AiProperties properties) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) properties.connectTimeout().toMillis());
+        factory.setReadTimeout((int) properties.readTimeout().toMillis());
+
+        return builder.requestFactory(factory).build();
+    }
+
+    /**
+     * A second, separately-gated client for Gemini - NOT reused with
+     * ollamaRestClient, because the two are active under mutually exclusive
+     * properties and sharing one bean name would force one condition to know
+     * about the other's provider value.
+     *
+     * GATED ON EITHER PROPERTY BEING gemini, because chat and embeddings are
+     * configured independently (vakilconnect.ai.provider and
+     * vakilconnect.ai.embedding.provider) but this codebase always points both
+     * at the same Gemini account - one key, one client, reused by
+     * GeminiLlmClient and GeminiEmbeddingClient alike.
+     */
+    @Bean
+    @ConditionalOnProperty(name = "vakilconnect.ai.provider", havingValue = AiProperties.GEMINI)
+    public RestClient geminiRestClient(RestClient.Builder builder, AiProperties properties) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) properties.connectTimeout().toMillis());
         factory.setReadTimeout((int) properties.readTimeout().toMillis());

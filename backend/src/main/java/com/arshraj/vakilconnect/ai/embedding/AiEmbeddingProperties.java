@@ -75,4 +75,6 @@ public record AiEmbeddingProperties(
 
     public static final String STUB = "stub";
     public static final String OLLAMA = "ollama";
+    /** Reuses vakilconnect.ai.api-key from AiProperties - see GeminiEmbeddingClient. */
+    public static final String GEMINI = "gemini";
 }

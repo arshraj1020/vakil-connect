@@ -66,9 +66,15 @@ class AiFoundationIT extends AbstractIntegrationTest {
     @Test
     @DisplayName("no HTTP client is built for AI in the test context")
     void noAiHttpClientExists() {
-        // AiConfig carries the same condition as the adapter, so under the stub
-        // there is no configured RestClient for AI at all.
-        assertEquals(0, context.getBeanNamesForType(AiConfig.class).length);
+        /*
+         * AiConfig ITSELF IS NOW UNCONDITIONAL - it also builds Gemini's
+         * client, gated per-bean rather than per-class, so its two @Bean
+         * methods carry the conditions instead. Under the stub, neither
+         * ollamaRestClient nor geminiRestClient is produced, which is the
+         * property that actually matters: no HTTP client for AI exists at all.
+         */
+        assertFalse(context.containsBean("ollamaRestClient"));
+        assertFalse(context.containsBean("geminiRestClient"));
     }
 
     @Test
