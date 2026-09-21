@@ -38,6 +38,7 @@ export const ROUTES = {
   LAWYER_AVAILABILITY: "/lawyer/availability",
   LAWYER_REVIEWS: "/lawyer/reviews",
   LAWYER_DOCUMENTS: "/lawyer/documents",
+  LAWYER_SUBSCRIPTION: "/lawyer/subscription",
 
   /* Admin */
   ADMIN_DASHBOARD: "/admin/dashboard",

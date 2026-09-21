@@ -7,6 +7,7 @@ import com.arshraj.vakilconnect.ai.document.config.AiDocumentProperties;
 import com.arshraj.vakilconnect.ai.embedding.AiEmbeddingProperties;
 import com.arshraj.vakilconnect.ai.ingest.AiIngestionProperties;
 import com.arshraj.vakilconnect.ai.rag.AiRetrievalProperties;
+import com.arshraj.vakilconnect.billing.config.RazorpayProperties;
 import com.arshraj.vakilconnect.email.EmailProperties;
 import com.arshraj.vakilconnect.identity.config.IdentityProperties;
 import org.springframework.boot.SpringApplication;
@@ -28,7 +29,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 		AiProperties.class, AiDocumentProperties.class,
 		AiEmbeddingProperties.class, AiIngestionProperties.class,
 		AiRetrievalProperties.class, AiAnalysisProperties.class,
-		AiComparisonProperties.class })
+		AiComparisonProperties.class, RazorpayProperties.class })
 @EnableScheduling
 public class VakilconnectApplication {
 

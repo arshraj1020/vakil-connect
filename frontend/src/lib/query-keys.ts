@@ -121,8 +121,15 @@ const aiDocumentKeys = {
     [...aiDocumentKeys.details(), documentId] as const,
 };
 
+const subscriptionKeys = {
+  all: ["subscription"] as const,
+  /** The authenticated lawyer's own subscription status. */
+  mine: () => [...subscriptionKeys.all, "me"] as const,
+};
+
 export const queryKeys = {
   auth: authKeys,
+  subscription: subscriptionKeys,
   lawyers: lawyerKeys,
   availability: availabilityKeys,
   appointments: appointmentKeys,

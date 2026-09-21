@@ -1,0 +1,44 @@
+import api from "@/lib/axios";
+import type {
+  SubscriptionOrderResponse,
+  SubscriptionPlan,
+  SubscriptionStatusResponse,
+  VerifySubscriptionPaymentRequest,
+} from "@/types";
+
+/**
+ * Lawyer subscription billing (Razorpay).
+ *
+ * All three endpoints are under `/api/lawyer/subscription`, covered by
+ * `hasRole("LAWYER")` in SecurityConfig - there is no client-side role check
+ * here because the route section already guards on it.
+ */
+
+const ENDPOINTS = {
+  status: "/api/lawyer/subscription",
+  orders: "/api/lawyer/subscription/orders",
+  verify: "/api/lawyer/subscription/verify",
+} as const;
+
+async function getStatus(): Promise<SubscriptionStatusResponse> {
+  const response = await api.get<SubscriptionStatusResponse>(ENDPOINTS.status);
+  return response.data;
+}
+
+async function createOrder(plan: SubscriptionPlan): Promise<SubscriptionOrderResponse> {
+  const response = await api.post<SubscriptionOrderResponse>(ENDPOINTS.orders, { plan });
+  return response.data;
+}
+
+async function verifyPayment(
+  request: VerifySubscriptionPaymentRequest,
+): Promise<SubscriptionStatusResponse> {
+  const response = await api.post<SubscriptionStatusResponse>(ENDPOINTS.verify, request);
+  return response.data;
+}
+
+export const lawyerSubscriptionService = {
+  getStatus,
+  createOrder,
+  verifyPayment,
+};

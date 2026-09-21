@@ -351,6 +351,39 @@ vakilconnect:
       max-list-items: ${AI_COMPARISON_MAX_LIST_ITEMS:20}
       max-item-characters: ${AI_COMPARISON_MAX_ITEM_CHARACTERS:400}
 
+  # -------------------------------------------------------------------------
+  # Razorpay subscription billing (lawyer sign-up payments).
+  #
+  # ALL THREE KEYS ARE BLANK BY DEFAULT, ON EVERY ENVIRONMENT INCLUDING
+  # PRODUCTION - there is no Razorpay account configured yet. This mirrors
+  # vakilconnect.ai's zero-cost-by-default philosophy: the application must
+  # boot cleanly with nothing set here. It is NOT pinned in
+  # application-prod.yaml the way vakilconnect.email is, because there is no
+  # unsafe default to guard against - an unconfigured Razorpay block is
+  # simply inert, it never leaks anything the way the console email sender
+  # would.
+  #
+  # RazorpaySubscriptionServiceImpl checks these before ever constructing a
+  # RazorpayClient. A lawyer who tries to actually pay before key-id/key-secret
+  # are set gets a clear 409 ("Payments are not configured yet.") instead of a
+  # crash reaching the Razorpay SDK with blank credentials.
+  #
+  # key-id is the PUBLIC key, safe to hand back to the frontend so it can open
+  # Razorpay Checkout. key-secret is used server-side only, to create orders
+  # and to verify a payment signature - never sent to the client.
+  #
+  # webhook-secret verifies the `X-Razorpay-Signature` header on
+  # POST /api/webhooks/razorpay, Razorpay's own best-effort notification of a
+  # captured payment (a safety net for when the frontend's own verify call
+  # never completes, e.g. the browser closed mid-checkout). Also blank by
+  # default; the webhook handler simply no-ops until it is set, rather than
+  # verifying against an empty secret.
+  # -------------------------------------------------------------------------
+  razorpay:
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+
 logging:
   level:
     # WARN by default - see backend/DEPLOYMENT.md "Two settings that are wrong

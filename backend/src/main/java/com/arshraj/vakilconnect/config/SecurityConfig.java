@@ -97,7 +97,18 @@ public class SecurityConfig {
 
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+
+                                /*
+                                 * Razorpay webhook (lawyer subscriptions).
+                                 * Razorpay's servers call this directly with
+                                 * no JWT - authenticity comes from the
+                                 * X-Razorpay-Signature header, verified
+                                 * inside LawyerSubscriptionServiceImpl against
+                                 * the configured webhook secret, not from
+                                 * anything Spring Security can check here.
+                                 */
+                                "/api/webhooks/razorpay"
                         ).permitAll()
 
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/lawyers/**")
