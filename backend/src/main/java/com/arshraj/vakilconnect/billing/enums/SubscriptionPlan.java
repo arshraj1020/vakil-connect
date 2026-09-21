@@ -11,8 +11,8 @@ package com.arshraj.vakilconnect.billing.enums;
  */
 public enum SubscriptionPlan {
 
-    MONTHLY(50_000),
-    YEARLY(550_000);
+    MONTHLY(49_900),
+    YEARLY(549_900);
 
     private final int amountPaise;
 

@@ -22,15 +22,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
 import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
+import org.json.JSONArray;
 
 /**
- * Razorpay-backed subscriptions: a lawyer pays Rs 500/month or Rs 5500/year
+ * Razorpay-backed subscriptions: a lawyer pays Rs 499/month or Rs 5499/year
  * to join the platform.
  *
  * SIGNATURE VERIFICATION IS MANUAL (HMAC-SHA256), NOT THE SDK HELPER. Both the
@@ -59,6 +66,8 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
     private final UserRepository userRepository;
     private final RazorpayProperties razorpayProperties;
 
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+
     public LawyerSubscriptionServiceImpl(LawyerSubscriptionRepository subscriptionRepository,
                                           LawyerRepository lawyerRepository,
                                           UserRepository userRepository,
@@ -81,7 +90,21 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
             return new SubscriptionStatusResponse(null, null, false, null, null);
         }
 
-        return toStatusResponse(current.get());
+        LawyerSubscription subscription = current.get();
+
+        // Self-heal: a PENDING row usually means the browser's own /verify
+        // call never happened - most commonly a UPI app-switch on mobile that
+        // never returns focus to Checkout's `handler` callback, even though
+        // Razorpay itself captured the payment. Every time the lawyer checks
+        // their status, ask Razorpay directly rather than waiting on a
+        // client call that may never come. Read-only and safe to repeat: if
+        // Razorpay has no captured payment for this order yet, this is a
+        // no-op.
+        if (subscription.getStatus() == SubscriptionStatus.PENDING) {
+            reconcileWithRazorpay(subscription);
+        }
+
+        return toStatusResponse(subscription);
     }
 
     @Override
@@ -212,6 +235,69 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
             // Best-effort: a webhook must never 500 on a payload shape we did
             // not anticipate, or Razorpay will retry-storm the endpoint.
             log.warn("Failed to process Razorpay webhook", e);
+        }
+    }
+
+    /**
+     * Asks Razorpay directly whether a PENDING order has a captured payment,
+     * and activates the subscription if so.
+     *
+     * USES THE ORDERS API, NOT A SIGNATURE. The signature check in
+     * {@link #verifyPayment} exists because that call is client-submitted -
+     * anyone could POST arbitrary orderId/paymentId/signature triples, so the
+     * signature is what proves the triple really came from Razorpay. This
+     * method instead ASKS Razorpay's server directly, over a connection
+     * authenticated with our own key secret, so there is nothing for a
+     * signature to attest to: the response itself is the source of truth.
+     *
+     * A plain HTTP call rather than the SDK, for the same reason
+     * {@link #hmacSha256Hex} is hand-rolled: this is a small, well-documented
+     * REST endpoint (GET /v1/orders/{id}/payments, HTTP Basic auth with
+     * key_id:key_secret), and a direct call is easier to verify by reading
+     * than trusting an SDK method's exact behaviour.
+     *
+     * Never throws - called from a read path (getCurrentStatus) that must
+     * keep working even when Razorpay is briefly unreachable.
+     */
+    private void reconcileWithRazorpay(LawyerSubscription subscription) {
+        String orderId = subscription.getRazorpayOrderId();
+        if (orderId == null) {
+            return;
+        }
+
+        try {
+            String credentials = razorpayProperties.keyId() + ":" + razorpayProperties.keySecret();
+            String basicAuth = Base64.getEncoder()
+                    .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.razorpay.com/v1/orders/" + orderId + "/payments"))
+                    .header("Authorization", "Basic " + basicAuth)
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.warn("Razorpay orders/payments lookup for {} returned HTTP {}", orderId, response.statusCode());
+                return;
+            }
+
+            JSONArray items = new JSONObject(response.body()).optJSONArray("items");
+            if (items == null) {
+                return;
+            }
+
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject payment = items.getJSONObject(i);
+                if ("captured".equals(payment.optString("status"))) {
+                    activate(subscription, payment.getString("id"), "reconciled-via-orders-api");
+                    return;
+                }
+            }
+
+        } catch (Exception e) {
+            log.warn("Could not reconcile subscription order {} with Razorpay", orderId, e);
         }
     }
 
