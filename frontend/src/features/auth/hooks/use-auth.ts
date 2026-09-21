@@ -46,7 +46,6 @@ export function useAuth() {
   const isInitialising = useAuthStore(selectIsInitialising);
   const error = useAuthStore((s) => s.error);
 
-  const setLoading = useAuthStore((s) => s.setLoading);
   const setUser = useAuthStore((s) => s.setUser);
   const setError = useAuthStore((s) => s.setError);
   const reset = useAuthStore((s) => s.reset);
@@ -63,8 +62,33 @@ export function useAuth() {
    */
   const login = useCallback(
     async (credentials: LoginRequest) => {
-      setLoading();
-
+      /*
+       * Deliberately does NOT call `setLoading()`.
+       *
+       * `setLoading()` sets the SAME `status: "loading"` that `AuthProvider`
+       * uses for the one-time session bootstrap, and `selectIsInitialising`
+       * cannot tell the two apart - it is just `status === "idle" || "loading"`.
+       * Every consumer of `isInitialising` (the auth layout, RoleGuard, the
+       * protected layout, the public navbar) treats that as "the app is still
+       * figuring out who is signed in" and swaps its content for a full-page
+       * loader while it is true.
+       *
+       * Calling it here used to mean: the instant a login attempt started, the
+       * login FORM ITSELF was unmounted and replaced with `<FullPageLoader />`
+       * by the very layout that renders it, and then - on failure - `reset()`
+       * flips status to "unauthenticated", `isInitialising` goes false again,
+       * and the layout remounts a brand-new, blank `LoginForm`. The mutation's
+       * `onError` toast still fires, but the form the user was looking at has
+       * already been torn down and rebuilt with empty fields, which reads as
+       * "the page just refreshed" rather than "sign-in failed" - exactly the
+       * symptom this was fixed for.
+       *
+       * The mutation's own `isPending` (already wired to `SubmitButton` in
+       * `LoginForm`) is the correct - and sufficient - loading indicator for a
+       * login attempt. The store's `status` is reserved for the session's
+       * actual lifecycle: authenticated, unauthenticated, or still hydrating
+       * on first load.
+       */
       try {
         const session = await authService.login(credentials);
         setStoredToken(session.token);
@@ -86,7 +110,7 @@ export function useAuth() {
         throw err;
       }
     },
-    [reset, setError, setLoading, setUser],
+    [reset, setError, setUser],
   );
 
   /**
