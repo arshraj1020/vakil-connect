@@ -70,7 +70,7 @@ class OllamaLlmClientTest {
 
     private static AiProperties properties(String baseUrl) {
         return new AiProperties(AiProperties.OLLAMA, baseUrl, MODEL,
-                0.2d, 1024, Duration.ofSeconds(5), Duration.ofSeconds(120));
+                0.2d, 1024, Duration.ofSeconds(5), Duration.ofSeconds(120), null);
     }
 
     private static LlmRequest request() {

@@ -81,7 +81,7 @@ class OllamaEmbeddingClientTest {
 
     private static AiProperties aiProperties() {
         return new AiProperties(AiProperties.OLLAMA, BASE_URL, "llama3.2",
-                0.2d, 1024, Duration.ofSeconds(5), Duration.ofSeconds(120));
+                0.2d, 1024, Duration.ofSeconds(5), Duration.ofSeconds(120), null);
     }
 
     private static AiEmbeddingProperties embeddingProperties(int dimension) {
