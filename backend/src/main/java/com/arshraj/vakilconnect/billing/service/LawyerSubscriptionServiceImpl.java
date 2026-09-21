@@ -34,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.List;
 import org.json.JSONArray;
 
 /**
@@ -83,28 +84,39 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
     public SubscriptionStatusResponse getCurrentStatus(String userEmail) {
         Lawyer lawyer = lawyerForEmail(userEmail);
 
-        Optional<LawyerSubscription> current =
-                subscriptionRepository.findTopByLawyerIdOrderByCreatedAtDesc(lawyer.getId());
+        List<LawyerSubscription> subscriptions =
+                subscriptionRepository.findByLawyerIdOrderByCreatedAtDesc(lawyer.getId());
 
-        if (current.isEmpty()) {
+        if (subscriptions.isEmpty()) {
             return new SubscriptionStatusResponse(null, null, false, null, null);
         }
 
-        LawyerSubscription subscription = current.get();
-
-        // Self-heal: a PENDING row usually means the browser's own /verify
-        // call never happened - most commonly a UPI app-switch on mobile that
-        // never returns focus to Checkout's `handler` callback, even though
-        // Razorpay itself captured the payment. Every time the lawyer checks
-        // their status, ask Razorpay directly rather than waiting on a
-        // client call that may never come. Read-only and safe to repeat: if
-        // Razorpay has no captured payment for this order yet, this is a
-        // no-op.
-        if (subscription.getStatus() == SubscriptionStatus.PENDING) {
-            reconcileWithRazorpay(subscription);
+        // Self-heal every PENDING row, not just the newest one. A lawyer can
+        // end up with more than one PENDING order - a re-click of Subscribe
+        // before the first order's payment settled, an abandoned Checkout,
+        // a stale attempt from testing - and the payment that actually
+        // succeeded is not guaranteed to belong to the most recent row. Each
+        // reconcile call is read-only against Razorpay and a no-op if that
+        // particular order has no captured payment yet, so sweeping all of
+        // them is safe. (This also covers the original bug: the browser's
+        // own /verify call never happening because a UPI app-switch on
+        // mobile never returns focus to Checkout's `handler` callback, even
+        // though Razorpay itself captured the payment.)
+        for (LawyerSubscription subscription : subscriptions) {
+            if (subscription.getStatus() == SubscriptionStatus.PENDING) {
+                reconcileWithRazorpay(subscription);
+            }
         }
 
-        return toStatusResponse(subscription);
+        LocalDateTime now = LocalDateTime.now();
+        LawyerSubscription chosen = subscriptions.stream()
+                .filter(s -> s.getStatus() == SubscriptionStatus.ACTIVE
+                        && s.getExpiresAt() != null
+                        && s.getExpiresAt().isAfter(now))
+                .findFirst() // list is newest-first, so this is the most recent active one
+                .orElse(subscriptions.get(0));
+
+        return toStatusResponse(chosen);
     }
 
     @Override
@@ -115,6 +127,26 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
         }
 
         Lawyer lawyer = lawyerForEmail(userEmail);
+
+        // Self-heal any PENDING orders before deciding whether a new one is
+        // needed - otherwise a lawyer who already paid (but whose payment
+        // hadn't reconciled yet) could end up stacking a second, redundant
+        // order on top of one that was actually fine.
+        List<LawyerSubscription> existing =
+                subscriptionRepository.findByLawyerIdOrderByCreatedAtDesc(lawyer.getId());
+        for (LawyerSubscription subscription : existing) {
+            if (subscription.getStatus() == SubscriptionStatus.PENDING) {
+                reconcileWithRazorpay(subscription);
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean alreadyActive = existing.stream().anyMatch(s -> s.getStatus() == SubscriptionStatus.ACTIVE
+                && s.getExpiresAt() != null
+                && s.getExpiresAt().isAfter(now));
+        if (alreadyActive) {
+            throw new BusinessRuleException("You already have an active subscription.");
+        }
 
         try {
             RazorpayClient client =
