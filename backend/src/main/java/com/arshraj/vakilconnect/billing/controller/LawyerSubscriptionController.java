@@ -1,8 +1,10 @@
 package com.arshraj.vakilconnect.billing.controller;
 
+import com.arshraj.vakilconnect.billing.dto.CouponValidationResponse;
 import com.arshraj.vakilconnect.billing.dto.CreateSubscriptionOrderRequest;
 import com.arshraj.vakilconnect.billing.dto.SubscriptionOrderResponse;
 import com.arshraj.vakilconnect.billing.dto.SubscriptionStatusResponse;
+import com.arshraj.vakilconnect.billing.dto.ValidateCouponRequest;
 import com.arshraj.vakilconnect.billing.dto.VerifySubscriptionPaymentRequest;
 import com.arshraj.vakilconnect.billing.enums.SubscriptionPlan;
 import com.arshraj.vakilconnect.billing.service.LawyerSubscriptionService;
@@ -44,7 +46,7 @@ public class LawyerSubscriptionController {
     public SubscriptionOrderResponse createOrder(@Valid @RequestBody CreateSubscriptionOrderRequest request,
                                                   Authentication authentication) {
         SubscriptionPlan plan = parsePlan(request.getPlan());
-        return subscriptionService.createOrder(authentication.getName(), plan);
+        return subscriptionService.createOrder(authentication.getName(), plan, request.getCouponCode());
     }
 
     @PostMapping("/verify")
@@ -52,6 +54,16 @@ public class LawyerSubscriptionController {
                                               Authentication authentication) {
         return subscriptionService.verifyPayment(
                 authentication.getName(), request.getOrderId(), request.getPaymentId(), request.getSignature());
+    }
+
+    /**
+     * Read-only check used by the "Apply" button on the subscription page -
+     * lets the frontend show the discounted price before the lawyer commits
+     * to Checkout, without creating an order yet.
+     */
+    @PostMapping("/coupons/validate")
+    public CouponValidationResponse validateCoupon(@Valid @RequestBody ValidateCouponRequest request) {
+        return subscriptionService.validateCoupon(request.getCode());
     }
 
     private SubscriptionPlan parsePlan(String plan) {

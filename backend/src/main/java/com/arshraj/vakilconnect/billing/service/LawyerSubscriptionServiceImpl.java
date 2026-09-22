@@ -1,11 +1,14 @@
 package com.arshraj.vakilconnect.billing.service;
 
 import com.arshraj.vakilconnect.billing.config.RazorpayProperties;
+import com.arshraj.vakilconnect.billing.dto.CouponValidationResponse;
 import com.arshraj.vakilconnect.billing.dto.SubscriptionOrderResponse;
 import com.arshraj.vakilconnect.billing.dto.SubscriptionStatusResponse;
+import com.arshraj.vakilconnect.billing.entity.Coupon;
 import com.arshraj.vakilconnect.billing.entity.LawyerSubscription;
 import com.arshraj.vakilconnect.billing.enums.SubscriptionPlan;
 import com.arshraj.vakilconnect.billing.enums.SubscriptionStatus;
+import com.arshraj.vakilconnect.billing.repository.CouponRepository;
 import com.arshraj.vakilconnect.billing.repository.LawyerSubscriptionRepository;
 import com.arshraj.vakilconnect.common.exception.BusinessRuleException;
 import com.arshraj.vakilconnect.common.exception.ResourceNotFoundException;
@@ -13,10 +16,13 @@ import com.arshraj.vakilconnect.lawyer.entity.Lawyer;
 import com.arshraj.vakilconnect.lawyer.repository.LawyerRepository;
 import com.arshraj.vakilconnect.user.entity.User;
 import com.arshraj.vakilconnect.user.repository.UserRepository;
+import com.arshraj.vakilconnect.email.EmailMessage;
+import com.arshraj.vakilconnect.email.event.SendEmailRequestedEvent;
 import com.razorpay.RazorpayClient;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,17 +72,26 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
     private final LawyerRepository lawyerRepository;
     private final UserRepository userRepository;
     private final RazorpayProperties razorpayProperties;
+    private final CouponRepository couponRepository;
+    private final SubscriptionEmailFactory emailFactory;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     public LawyerSubscriptionServiceImpl(LawyerSubscriptionRepository subscriptionRepository,
                                           LawyerRepository lawyerRepository,
                                           UserRepository userRepository,
-                                          RazorpayProperties razorpayProperties) {
+                                          RazorpayProperties razorpayProperties,
+                                          CouponRepository couponRepository,
+                                          SubscriptionEmailFactory emailFactory,
+                                          ApplicationEventPublisher eventPublisher) {
         this.subscriptionRepository = subscriptionRepository;
         this.lawyerRepository = lawyerRepository;
         this.userRepository = userRepository;
         this.razorpayProperties = razorpayProperties;
+        this.couponRepository = couponRepository;
+        this.emailFactory = emailFactory;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -121,7 +136,7 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
 
     @Override
     @Transactional
-    public SubscriptionOrderResponse createOrder(String userEmail, SubscriptionPlan plan) {
+    public SubscriptionOrderResponse createOrder(String userEmail, SubscriptionPlan plan, String couponCode) {
         if (!razorpayProperties.isConfigured()) {
             throw new BusinessRuleException("Payments are not configured yet.");
         }
@@ -148,12 +163,36 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
             throw new BusinessRuleException("You already have an active subscription.");
         }
 
+        Coupon coupon = resolveCoupon(couponCode);
+        int discountPercent = coupon == null ? 0 : coupon.getDiscountPercent();
+        String resolvedCouponCode = coupon == null ? null : coupon.getCode();
+
+        int originalAmountPaise = plan.getAmountPaise();
+        int discountedAmountPaise = originalAmountPaise - (originalAmountPaise * discountPercent / 100);
+
+        // A 100%-off coupon leaves nothing for Razorpay to charge - it does
+        // not support a zero-amount order - so skip Checkout entirely and
+        // activate the subscription the same way a verified payment would.
+        if (discountPercent >= 100) {
+            LawyerSubscription subscription = new LawyerSubscription();
+            subscription.setLawyer(lawyer);
+            subscription.setPlan(plan);
+            subscription.setAmountPaise(0);
+            subscription.setCurrency("INR");
+            subscription.setCouponCode(resolvedCouponCode);
+            subscription.setDiscountPercent(discountPercent);
+            activate(subscription, "coupon-" + resolvedCouponCode, "n/a");
+
+            return new SubscriptionOrderResponse(
+                    null, null, 0, originalAmountPaise, discountPercent, "INR", plan.name(), false);
+        }
+
         try {
             RazorpayClient client =
                     new RazorpayClient(razorpayProperties.keyId(), razorpayProperties.keySecret());
 
             JSONObject orderRequest = new JSONObject();
-            orderRequest.put("amount", plan.getAmountPaise());
+            orderRequest.put("amount", discountedAmountPaise);
             orderRequest.put("currency", "INR");
             orderRequest.put("receipt", "sub_" + lawyer.getId() + "_" + System.currentTimeMillis());
 
@@ -164,13 +203,15 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
             subscription.setLawyer(lawyer);
             subscription.setPlan(plan);
             subscription.setStatus(SubscriptionStatus.PENDING);
-            subscription.setAmountPaise(plan.getAmountPaise());
+            subscription.setAmountPaise(discountedAmountPaise);
             subscription.setCurrency("INR");
             subscription.setRazorpayOrderId(orderId);
+            subscription.setCouponCode(resolvedCouponCode);
+            subscription.setDiscountPercent(discountPercent);
             subscriptionRepository.save(subscription);
 
-            return new SubscriptionOrderResponse(
-                    orderId, razorpayProperties.keyId(), plan.getAmountPaise(), "INR", plan.name());
+            return new SubscriptionOrderResponse(orderId, razorpayProperties.keyId(), discountedAmountPaise,
+                    originalAmountPaise, discountPercent, "INR", plan.name(), true);
 
         } catch (BusinessRuleException e) {
             throw e;
@@ -178,6 +219,24 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
             log.error("Failed to create Razorpay order for lawyer {}", lawyer.getId(), e);
             throw new BusinessRuleException("Could not start the payment. Please try again.");
         }
+    }
+
+    @Override
+    public CouponValidationResponse validateCoupon(String couponCode) {
+        Coupon coupon = resolveCoupon(couponCode);
+        if (coupon == null) {
+            throw new BusinessRuleException("Invalid coupon code.");
+        }
+        return new CouponValidationResponse(coupon.getCode(), coupon.getDiscountPercent());
+    }
+
+    /** @return the active coupon for this code, or null when couponCode is blank/absent. Throws when non-blank but not found/active. */
+    private Coupon resolveCoupon(String couponCode) {
+        if (couponCode == null || couponCode.isBlank()) {
+            return null;
+        }
+        return couponRepository.findByCodeIgnoreCaseAndActiveTrue(couponCode.trim())
+                .orElseThrow(() -> new BusinessRuleException("Invalid coupon code."));
     }
 
     @Override
@@ -345,6 +404,27 @@ public class LawyerSubscriptionServiceImpl implements LawyerSubscriptionService 
                 : now.plusMonths(1));
 
         subscriptionRepository.save(subscription);
+
+        sendActivationEmail(subscription);
+    }
+
+    /**
+     * Best-effort: a purchase confirmation email must never fail the
+     * activation itself. Published as an event (AFTER_COMMIT, see
+     * SendEmailRequestedEvent) rather than sent inline, matching how every
+     * other transactional email in this codebase is dispatched - so the
+     * email only ever goes out once this subscription row has actually
+     * committed.
+     */
+    private void sendActivationEmail(LawyerSubscription subscription) {
+        try {
+            User user = subscription.getLawyer().getUser();
+            EmailMessage message = emailFactory.create(user.getEmail(), user.getFullName(), subscription);
+            eventPublisher.publishEvent(new SendEmailRequestedEvent(message));
+        } catch (Exception e) {
+            log.warn("Could not queue subscription activation email for subscription {}",
+                    subscription.getId(), e);
+        }
     }
 
     private Lawyer lawyerForEmail(String userEmail) {

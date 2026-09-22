@@ -8,6 +8,9 @@ public class CreateSubscriptionOrderRequest {
     @NotBlank
     private String plan;
 
+    /** Optional. A coupon code such as ARSHCARE/ARSHFRIEND/ARSHFAMILY - blank/absent means no discount. */
+    private String couponCode;
+
     public CreateSubscriptionOrderRequest() {
     }
 
@@ -17,5 +20,13 @@ public class CreateSubscriptionOrderRequest {
 
     public void setPlan(String plan) {
         this.plan = plan;
+    }
+
+    public String getCouponCode() {
+        return couponCode;
+    }
+
+    public void setCouponCode(String couponCode) {
+        this.couponCode = couponCode;
     }
 }

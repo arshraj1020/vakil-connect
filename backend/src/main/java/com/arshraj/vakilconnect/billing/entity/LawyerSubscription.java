@@ -59,6 +59,12 @@ public class LawyerSubscription extends BaseEntity {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
+    @Column(name = "coupon_code", length = 40)
+    private String couponCode;
+
+    @Column(name = "discount_percent", nullable = false)
+    private int discountPercent = 0;
+
     public LawyerSubscription() {
     }
 
@@ -140,5 +146,21 @@ public class LawyerSubscription extends BaseEntity {
 
     public void setExpiresAt(LocalDateTime expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public String getCouponCode() {
+        return couponCode;
+    }
+
+    public void setCouponCode(String couponCode) {
+        this.couponCode = couponCode;
+    }
+
+    public int getDiscountPercent() {
+        return discountPercent;
+    }
+
+    public void setDiscountPercent(int discountPercent) {
+        this.discountPercent = discountPercent;
     }
 }

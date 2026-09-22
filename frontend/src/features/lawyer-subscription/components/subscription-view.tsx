@@ -13,11 +13,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { isApiError, type SubscriptionPlan } from "@/types";
 
 import { useCreateSubscriptionOrder } from "../hooks/use-create-subscription-order";
 import { useSubscriptionStatus } from "../hooks/use-subscription-status";
+import { useValidateCoupon } from "../hooks/use-validate-coupon";
 import { useVerifySubscriptionPayment } from "../hooks/use-verify-subscription-payment";
 
 const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
@@ -33,19 +36,26 @@ const RECONCILE_POLL_ATTEMPTS = 5;
 const PLANS: Array<{
   plan: SubscriptionPlan;
   label: string;
-  price: string;
+  amountPaise: number;
   cadence: string;
   note?: string;
 }> = [
-  { plan: "MONTHLY", label: "Monthly", price: "Rs 499", cadence: "/ month" },
+  { plan: "MONTHLY", label: "Monthly", amountPaise: 49_900, cadence: "/ month" },
   {
     plan: "YEARLY",
     label: "Yearly",
-    price: "Rs 5,499",
+    amountPaise: 549_900,
     cadence: "/ year",
     note: "Save Rs 489 versus paying monthly",
   },
 ];
+
+/** Renders paise as "Rs 499" or "Rs 449.10" - only shows decimals when the discount produces a fraction. */
+function formatRupees(paise: number): string {
+  const rupees = paise / 100;
+  const rounded = Math.round(rupees * 100) / 100;
+  return `Rs ${Number.isInteger(rounded) ? rounded : rounded.toFixed(2)}`;
+}
 
 /** Loads Razorpay's Checkout script once and resolves when it's ready to use. */
 function loadRazorpayScript(): Promise<void> {
@@ -108,8 +118,24 @@ export function SubscriptionView() {
   const { data: status, isLoading, refetch } = useSubscriptionStatus();
   const [payingPlan, setPayingPlan] = useState<SubscriptionPlan | null>(null);
   const [reconciling, setReconciling] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number } | null>(
+    null,
+  );
 
   const createOrder = useCreateSubscriptionOrder();
+  const validateCoupon = useValidateCoupon({
+    onSuccess: (result) => {
+      setAppliedCoupon({ code: result.code, discountPercent: result.discountPercent });
+      toast.success(`${result.code} applied - ${result.discountPercent}% off`);
+    },
+    onError: (error) => {
+      setAppliedCoupon(null);
+      toast.error("Invalid coupon code", {
+        description: isApiError(error) ? error.message : "Please check the code and try again.",
+      });
+    },
+  });
   const verifyPayment = useVerifySubscriptionPayment({
     onSuccess: (result) => {
       setPayingPlan(null);
@@ -142,14 +168,34 @@ export function SubscriptionView() {
     setPayingPlan(null);
   }
 
+  function handleApplyCoupon() {
+    const code = couponCode.trim();
+    if (!code) return;
+    validateCoupon.mutate(code);
+  }
+
   async function handleSubscribe(plan: SubscriptionPlan) {
     setPayingPlan(plan);
 
     try {
       const [order] = await Promise.all([
-        createOrder.mutateAsync(plan),
+        // Only an explicitly-Applied coupon is sent - typing a code and
+        // hitting Subscribe without clicking Apply first subscribes at full
+        // price, so the lawyer always sees the discount before paying it.
+        createOrder.mutateAsync({ plan, couponCode: appliedCoupon?.code }),
         loadRazorpayScript(),
       ]);
+
+      // A 100%-off coupon activates the subscription immediately server-side
+      // - there is nothing for Razorpay to charge, so Checkout never opens.
+      if (!order.requiresPayment) {
+        const { data } = await refetch();
+        setPayingPlan(null);
+        if (data?.active) {
+          toast.success("Coupon applied - subscription activated. Welcome aboard!");
+        }
+        return;
+      }
 
       let handlerRan = false;
 
@@ -243,34 +289,84 @@ export function SubscriptionView() {
       )}
 
       {!active && (
-        <div className="grid gap-6 sm:grid-cols-2">
-          {PLANS.map(({ plan, label, price, cadence, note }) => (
-            <Card key={plan}>
-              <CardHeader>
-                <CardTitle>{label}</CardTitle>
-                <CardDescription>
-                  <span className="text-2xl font-semibold text-foreground">{price}</span>{" "}
-                  {cadence}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {note && <p className="text-sm text-muted-foreground">{note}</p>}
-              </CardContent>
-              <CardFooter>
-                <Button
-                  className="w-full"
-                  disabled={payingPlan !== null || reconciling}
-                  onClick={() => handleSubscribe(plan)}
-                >
-                  {payingPlan === plan
-                    ? reconciling
-                      ? "Confirming payment..."
-                      : "Opening checkout..."
-                    : `Subscribe ${label.toLowerCase()}`}
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+        <div className="space-y-6">
+          <div className="max-w-xs space-y-1.5">
+            <Label htmlFor="coupon-code">Coupon code</Label>
+            <div className="flex gap-2">
+              <Input
+                id="coupon-code"
+                placeholder="e.g. ARSHCARE"
+                value={couponCode}
+                onChange={(event) => {
+                  setCouponCode(event.target.value.toUpperCase());
+                  setAppliedCoupon(null);
+                }}
+                disabled={payingPlan !== null || reconciling}
+                className="uppercase"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!couponCode.trim() || validateCoupon.isPending || payingPlan !== null || reconciling}
+                onClick={handleApplyCoupon}
+              >
+                {validateCoupon.isPending ? "Checking..." : "Apply"}
+              </Button>
+            </div>
+            {appliedCoupon ? (
+              <p className="text-xs text-success">
+                {appliedCoupon.code} applied - {appliedCoupon.discountPercent}% off.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Optional - click Apply to preview the discount before subscribing.
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            {PLANS.map(({ plan, label, amountPaise, cadence, note }) => {
+              const discountedPaise = appliedCoupon
+                ? amountPaise - Math.floor((amountPaise * appliedCoupon.discountPercent) / 100)
+                : amountPaise;
+              const discounted = appliedCoupon && discountedPaise !== amountPaise;
+
+              return (
+                <Card key={plan}>
+                  <CardHeader>
+                    <CardTitle>{label}</CardTitle>
+                    <CardDescription className="flex flex-wrap items-baseline gap-2">
+                      {discounted && (
+                        <span className="text-base text-muted-foreground line-through">
+                          {formatRupees(amountPaise)}
+                        </span>
+                      )}
+                      <span className="text-2xl font-semibold text-foreground">
+                        {formatRupees(discountedPaise)}
+                      </span>{" "}
+                      {cadence}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {note && <p className="text-sm text-muted-foreground">{note}</p>}
+                  </CardContent>
+                  <CardFooter>
+                    <Button
+                      className="w-full"
+                      disabled={payingPlan !== null || reconciling}
+                      onClick={() => handleSubscribe(plan)}
+                    >
+                      {payingPlan === plan
+                        ? reconciling
+                          ? "Confirming payment..."
+                          : "Opening checkout..."
+                        : `Subscribe ${label.toLowerCase()}`}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

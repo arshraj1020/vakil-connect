@@ -31,14 +31,23 @@ export interface SubscriptionStatusResponse {
   expiresAt: IsoDateTime | null;
 }
 
-/** Returned by POST /api/lawyer/subscription/orders. */
+/**
+ * Returned by POST /api/lawyer/subscription/orders.
+ *
+ * `orderId`/`keyId` are null and `requiresPayment` is false only for a
+ * 100%-off coupon - the subscription is already active by the time this
+ * response comes back, and the caller must not open Razorpay Checkout.
+ */
 export interface SubscriptionOrderResponse {
-  orderId: string;
+  orderId: string | null;
   /** Razorpay's PUBLIC key id - safe to hand to `new window.Razorpay({...})`. */
-  keyId: string;
+  keyId: string | null;
   amountPaise: number;
+  originalAmountPaise: number;
+  discountPercent: number;
   currency: string;
   plan: SubscriptionPlan;
+  requiresPayment: boolean;
 }
 
 /** Body for POST /api/lawyer/subscription/verify - Razorpay Checkout's `handler` payload. */
@@ -46,4 +55,10 @@ export interface VerifySubscriptionPaymentRequest {
   orderId: string;
   paymentId: string;
   signature: string;
+}
+
+/** Returned by POST /api/lawyer/subscription/coupons/validate. */
+export interface CouponValidationResponse {
+  code: string;
+  discountPercent: number;
 }
