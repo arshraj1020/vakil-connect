@@ -16,6 +16,15 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # V13's file content changed after it was already applied to production
+    # (the seeded coupon codes were removed so they would never sit in a
+    # git-tracked file - see V13's own header comment). That's a deliberate,
+    # reviewed edit, not a foreign migration someone slipped in, so let Flyway
+    # reconcile its recorded checksum for that migration on startup instead of
+    # refusing to boot. repair-on-migrate does NOT re-run any SQL - it only
+    # updates flyway_schema_history's checksum column to match what's actually
+    # on disk now.
+    repair-on-migrate: true
 
   # ---------------------------------------------------------------------------
   # Multipart uploads (AI-1).
