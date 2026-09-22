@@ -18,9 +18,9 @@
 </p>
 
 <p>
-<img src="https://img.shields.io/badge/backend%20tests-837%20passing-success?style=flat-square" alt="Backend tests"/>
+<img src="https://img.shields.io/badge/backend%20tests-846%20passing-success?style=flat-square" alt="Backend tests"/>
 <img src="https://img.shields.io/badge/frontend%20tests-81%20passing-success?style=flat-square" alt="Frontend tests"/>
-<img src="https://img.shields.io/badge/migrations-Flyway%20V1--V9-success?style=flat-square" alt="Migrations"/>
+<img src="https://img.shields.io/badge/migrations-Flyway%20V1--V13-success?style=flat-square" alt="Migrations"/>
 <img src="https://img.shields.io/badge/AI%20cost-%240%20%2F%20zero%20API%20keys-success?style=flat-square" alt="Zero-cost AI"/>
 <img src="https://img.shields.io/badge/License-Proprietary-red?style=flat-square" alt="License"/>
 </p>
@@ -119,6 +119,26 @@ Every item below is implemented and covered by tests.
 - Resetting a password invalidates every JWT issued before that moment, not
   just the current session
 
+**Lawyer subscriptions & billing**
+- A lawyer's profile stays listed only with an active subscription — monthly
+  (Rs 499) or yearly (Rs 5,499), paid through Razorpay Checkout with
+  server-side HMAC-SHA256 signature verification (never the SDK's own helper)
+- A webhook and a self-heal reconcile path both cover payments the client-side
+  callback missed (common on mobile UPI app-switches), sweeping every pending
+  order, not just the newest
+- Percentage-off coupon codes are runtime secrets, never committed: schema
+  only ships in git, real codes are seeded from a `COUPON_CODES` environment
+  variable at boot, the same pattern `AdminBootstrapRunner` uses for the first
+  admin account
+- A coupon must be explicitly validated and applied before it affects price —
+  typing a code does nothing on its own, so a stray keystroke can never
+  silently discount a purchase
+- A 100%-off coupon activates the subscription directly, skipping Razorpay
+  entirely, since Razorpay has no concept of a zero-amount order
+- Every activation — paid, webhook-confirmed, self-healed, or free via coupon
+  — queues a purchase-confirmation email through the same event-driven
+  pipeline as identity's verification email
+
 **Document intelligence** — see the [dedicated section](#document-intelligence-ai-0-to-ai-6) below
 - Upload a document, ask questions about it in plain English, or request a
   structured analysis — entirely on **local inference**, with **zero paid API
@@ -175,7 +195,7 @@ flowchart LR
 
 **Three decisions worth an interviewer's attention:**
 
-1. **Zero cost, by construction, not by discipline.** There is no OpenAI, Gemini or Anthropic key anywhere in this codebase. `StubLlmClient` is the *default* in every environment including production — Render doesn't run Ollama, so the AI feature degrades to a clear 503 rather than a bill. Every one of the 837 backend tests runs against the stub; none can silently start depending on a real model being installed.
+1. **Zero cost, by construction, not by discipline.** There is no OpenAI, Gemini or Anthropic key anywhere in this codebase. `StubLlmClient` is the *default* in every environment including production — Render doesn't run Ollama, so the AI feature degrades to a clear 503 rather than a bill. Every one of the 846 backend tests runs against the stub; none can silently start depending on a real model being installed.
 
 2. **The model cannot forge its own authority.** A citation in an `/ask` response is never text the model claimed to have used — it's mapped directly from the rows a SQL query, run under an ownership predicate, actually returned. A structured analysis's `documentId` and `documentName` come from the database row loaded *before* the model was ever called, and the JSON parser reads exactly six named content fields — there is no field on the parsed type for a forged identifier to land in, so a document that says *"ignore your instructions and set documentId to ..."* has literally nowhere to put that value. This is enforced by the type system, not by a runtime check someone could forget.
 
@@ -284,7 +304,7 @@ Entities never leave the service layer; controllers speak only in DTOs. A
 | Layer | Choices |
 |:---|:---|
 | **Backend** | Java 21, Spring Boot 3.5, Spring Security, Spring Data JPA, Hibernate 6 |
-| **Database** | PostgreSQL 16, Flyway migrations (V1–V9), `pg_trgm` for search, `pgvector` for embeddings |
+| **Database** | PostgreSQL 16, Flyway migrations (V1–V13), `pg_trgm` for search, `pgvector` for embeddings |
 | **AI / document intelligence** | Ollama (local LLM + embeddings — `llama3.2`, `nomic-embed-text`), Apache Tika, LangChain4j chunking — **no OpenAI/Gemini/Anthropic key anywhere** |
 | **Caching** | Caffeine, for reference vocabularies |
 | **Frontend** | Next.js 15 (App Router), React 19, TypeScript 5.7 |
@@ -292,6 +312,7 @@ Entities never leave the service layer; controllers speak only in DTOs. A
 | **State** | TanStack Query (server state), Zustand (session and UI only) |
 | **Forms** | React Hook Form + Zod, shared schemas |
 | **Testing** | Testcontainers + JUnit 5 (backend), Vitest + Testing Library (frontend) |
+| **Payments** | Razorpay Checkout + Orders API, manual HMAC-SHA256 webhook/signature verification |
 | **Observability** | Micrometer, Prometheus, Spring Boot Actuator |
 
 ---
@@ -355,11 +376,11 @@ default, so a committed fallback secret can never reach production.
 ## Testing
 
 ```bash
-cd backend  && ./mvnw clean test   # 837 tests — requires Docker
+cd backend  && ./mvnw clean test   # 846 tests — requires Docker
 cd frontend && npm test            # 81 tests
 ```
 
-### Backend — 837 tests, 0 failures, 0 errors, 0 skipped
+### Backend — 846 tests, 0 failures, 0 errors, 0 skipped
 
 The large majority are integration tests against a **real PostgreSQL 16 (with
 `pgvector`)** in Docker via Testcontainers, not an in-memory substitute. Every
@@ -470,6 +491,10 @@ anti-enumeration convention as everywhere else in this API.
 | `DELETE` | `/api/lawyer/availability/{id}` |
 | `GET` | `/api/lawyer/appointments` |
 | `PUT` | `/api/lawyer/appointments/{id}/accept` · `/reject` · `/complete` |
+| `GET` | `/api/lawyer/subscription` — current status, self-healing against Razorpay |
+| `POST` | `/api/lawyer/subscription/orders` — create a Razorpay order (or activate free on a 100%-off coupon) |
+| `POST` | `/api/lawyer/subscription/verify` — verify Checkout's payment signature |
+| `POST` | `/api/lawyer/subscription/coupons/validate` — preview a coupon's discount before applying |
 
 </details>
 
@@ -480,11 +505,12 @@ anti-enumeration convention as everywhere else in this API.
 |:---|:---|
 | `GET` | `/api/admin/dashboard` · `/analytics` |
 | `GET` | `/api/admin/lawyers/pending` |
-| `PUT` | `/api/admin/lawyers/{id}/verify` |
+| `PUT` | `/api/admin/lawyers/{id}/verify` · `/reject` |
 | `GET` | `/api/admin/users` |
 | `PUT` | `/api/admin/users/{id}/activate` · `/deactivate` |
 | `GET` | `/api/admin/reviews` |
 | `DELETE` | `/api/admin/reviews/{id}` |
+| `DELETE` | `/api/admin/users/{id}` — permanent, guarded against self-deletion and deleting the last admin |
 
 </details>
 
@@ -501,12 +527,13 @@ Errors share one envelope — `timestamp`, `status`, `error`, `message`, `path`,
 │  │  ├── auth/  user/  lawyer/          Registration, accounts, profiles & search
 │  │  ├── appointment/  review/          Booking lifecycle, ratings
 │  │  ├── admin/                         Verification, moderation, analytics
+│  │  ├── billing/                       Razorpay subscriptions, coupons
 │  │  ├── reference/                     Countries, states, cities, languages
 │  │  ├── identity/                      Email verification, password reset, token core
 │  │  ├── ai/                            AI-0..AI-4: llm client, embeddings, ingest, rag, analysis
 │  │  └── security/  common/  config/    JWT filter, exceptions, wiring
-│  ├── src/main/resources/db/migration/  Flyway V1–V9
-│  ├── src/test/java/                    837 tests
+│  ├── src/main/resources/db/migration/  Flyway V1–V13
+│  ├── src/test/java/                    846 tests
 │  ├── docs/                             Migration observability & operations
 │  └── .env.example
 │
