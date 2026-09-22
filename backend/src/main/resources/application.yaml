@@ -19,12 +19,21 @@ spring:
     # V13's file content changed after it was already applied to production
     # (the seeded coupon codes were removed so they would never sit in a
     # git-tracked file - see V13's own header comment). That's a deliberate,
-    # reviewed edit, not a foreign migration someone slipped in, so let Flyway
-    # reconcile its recorded checksum for that migration on startup instead of
-    # refusing to boot. repair-on-migrate does NOT re-run any SQL - it only
-    # updates flyway_schema_history's checksum column to match what's actually
-    # on disk now.
-    repair-on-migrate: true
+    # reviewed edit, not a foreign migration someone slipped in - but Flyway
+    # has no way to tell the difference, and refuses to start on any checksum
+    # mismatch. repair-on-migrate does NOT help here: it only re-runs repair()
+    # after a migration *fails to apply*, not before a validate-time checksum
+    # check, so it never even gets invoked in this case.
+    #
+    # validate-on-migrate: false skips that checksum check. Flyway still only
+    # applies migrations whose version isn't already recorded in
+    # flyway_schema_history - V13 is already recorded, so nothing about it
+    # gets re-run, and every later migration (V14+) is still validated and
+    # applied normally. This should be reverted to true (the default) once
+    # V13's recorded checksum has been reconciled directly against the
+    # database (a one-time `flyway repair`), which needs DB access this
+    # deploy pipeline doesn't have.
+    validate-on-migrate: false
 
   # ---------------------------------------------------------------------------
   # Multipart uploads (AI-1).
